@@ -1,0 +1,2478 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GameClip GIF Maker — プロフィールカード枠＆瞬きループ自動検出GIFメーカー</title>
+  <meta name="description" content="ゲーム録画からプロフィールカードの枠（装飾はみ出し含む）とキャラクターの瞬きタイミングを自動検出し、ブラウザ内だけで高画質なループGIFを作成できるツールです。" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Ctext x='16' y='21' text-anchor='middle' fill='white' font-family='system-ui,sans-serif' font-size='12' font-weight='700'%3EGIF%3C/text%3E%3C/svg%3E" />
+  <style>
+    :root,
+    [data-theme="dark"] {
+      --bg: #0f1117;
+      --surface: #171a23;
+      --surface-alt: #1e222e;
+      --border: #2a3040;
+      --text: #eef1f7;
+      --text-muted: #9aa3b5;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --primary-fg: #ffffff;
+      --secondary-bg: #232838;
+      --secondary-fg: #e2e8f0;
+      --code-fg: #cbd5e1;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --error: #ef4444;
+      --link: #60a5fa;
+      --shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+    }
+
+    [data-theme="light"] {
+      --bg: #f4f6f9;
+      --surface: #ffffff;
+      --surface-alt: #f8fafc;
+      --border: #dde3ec;
+      --text: #111827;
+      --text-muted: #5c667a;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --primary-fg: #ffffff;
+      --secondary-bg: #f1f5f9;
+      --secondary-fg: #1e293b;
+      --code-fg: #1e293b;
+      --success: #16a34a;
+      --warning: #d97706;
+      --error: #dc2626;
+      --link: #2563eb;
+      --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", Meiryo, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .hidden { display: none !important; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Layout */
+    .app-shell {
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .app-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      background: var(--primary);
+      color: var(--primary-fg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .brand h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .brand p {
+      margin: 0;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 372px;
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 1024px) {
+      .workspace { grid-template-columns: 1fr; }
+    }
+
+    .col-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      min-width: 0;
+    }
+
+    /* Cards & Controls */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .card-pad { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+    .card-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 14px;
+      background: var(--surface-alt);
+      border-bottom: 1px solid var(--border);
+    }
+    .card-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .card-title {
+      margin: 0;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .muted { color: var(--text-muted); font-size: 12px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--secondary-bg);
+      color: var(--secondary-fg);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.15s, background 0.15s, opacity 0.15s;
+      white-space: nowrap;
+    }
+    .btn:hover:not(:disabled) { border-color: var(--primary); }
+    .btn:disabled { opacity: 0.42; cursor: not-allowed; }
+    .btn-primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: var(--primary-fg);
+      font-weight: 600;
+    }
+    .btn-primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+    .btn-sm { padding: 4px 9px; border-radius: 6px; font-size: 12px; }
+    .btn-lg { width: 100%; padding: 10px 14px; font-size: 13px; }
+    .btn-icon { width: 32px; height: 32px; padding: 0; }
+
+    .toggle-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      transition: border-color 0.15s;
+    }
+    .toggle-pill:hover { border-color: var(--primary); }
+    .toggle-pill input, input[type="checkbox"] { accent-color: var(--primary); width: 14px; height: 14px; margin: 0; cursor: pointer; }
+    input[type="range"] { accent-color: var(--primary); cursor: pointer; }
+
+    .field-input, .field-select {
+      width: 100%;
+      padding: 6px 9px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .field-input:focus, .field-select:focus { border-color: var(--primary); }
+    .field-label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+    .field-label > span { color: var(--text-muted); font-size: 12px; }
+
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .grid-5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+
+    .seg-group {
+      display: inline-flex;
+      padding: 2px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      gap: 2px;
+    }
+    .seg-btn {
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      padding: 3px 8px;
+      border-radius: 5px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .seg-btn:hover { color: var(--text); }
+    .seg-btn.active { background: var(--primary); color: var(--primary-fg); font-weight: 600; }
+
+    .fps-btn {
+      padding: 5px 0;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+      color: var(--text);
+      font-size: 12px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .fps-btn:hover { border-color: var(--primary); }
+    .fps-btn.active { background: var(--primary); border-color: var(--primary); color: var(--primary-fg); font-weight: 600; }
+
+    /* Dropzone */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 14px;
+      background: var(--surface);
+      padding: 44px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .dropzone:hover { border-color: var(--primary); }
+    .dropzone-inner { max-width: 460px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+    .dropzone-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .summary-chip {
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    /* Stage */
+    .stage-wrap {
+      position: relative;
+      width: 100%;
+      height: 430px;
+      background: var(--bg);
+      overflow: hidden;
+      outline: none;
+    }
+    @media (max-width: 640px) { .stage-wrap { height: 320px; } }
+    .stage-canvas {
+      touch-action: none;
+      user-select: none;
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    .hud-pill {
+      pointer-events: none;
+      position: absolute;
+      bottom: 10px;
+      padding: 4px 10px;
+      border-radius: 7px;
+      background: color-mix(in srgb, var(--surface) 90%, transparent);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+    .hud-left { left: 12px; }
+    .hud-right { right: 12px; color: var(--text-muted); }
+
+    .roi-banner {
+      padding: 8px 14px;
+      background: color-mix(in srgb, var(--primary) 14%, var(--surface));
+      border-bottom: 1px solid color-mix(in srgb, var(--primary) 35%, var(--border));
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    /* Timeline */
+    .timeline-box {
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .transport-row { display: flex; align-items: center; gap: 8px; }
+    .track-wrap {
+      position: relative;
+      flex: 1;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .track-rail {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      position: relative;
+    }
+    .track-trim {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      background: color-mix(in srgb, var(--primary) 38%, transparent);
+    }
+    .track-markers {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .blink-dot {
+      pointer-events: auto;
+      position: absolute;
+      top: 2px;
+      transform: translateX(-50%);
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--warning);
+      border: 1.5px solid var(--surface);
+      padding: 0;
+      cursor: pointer;
+      transition: transform 0.12s;
+    }
+    .blink-dot:hover { transform: translateX(-50%) scale(1.28); }
+    .track-head {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--primary);
+      border: 2px solid var(--surface);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .trim-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .inline-group { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+    /* Progress & Result */
+    .progress-rail {
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--surface-alt);
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--primary);
+      width: 0%;
+      transition: width 0.1s linear;
+    }
+    .checkerboard {
+      background-image:
+        linear-gradient(45deg, rgba(128,128,128,0.14) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(128,128,128,0.14) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(128,128,128,0.14) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(128,128,128,0.14) 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    }
+    .result-preview {
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 180px;
+      max-height: 440px;
+      overflow: auto;
+    }
+    .result-preview img {
+      max-width: 100%;
+      max-height: 400px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+
+    /* Blink Sparkline & Code */
+    .sub-box {
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+      padding: 9px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .sparkline-canvas {
+      width: 100%;
+      height: 54px;
+      display: block;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    .pair-list { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
+    .pair-btn {
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .pair-btn:hover { border-color: var(--primary); }
+    .pair-btn.active { background: var(--primary); border-color: var(--primary); color: var(--primary-fg); font-weight: 600; }
+
+    .code-pre {
+      margin: 0;
+      padding: 10px;
+      border-radius: 8px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      color: var(--code-fg);
+      font-size: 12px;
+      line-height: 1.5;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-height: 106px;
+    }
+
+    .warn-box {
+      border-radius: 7px;
+      border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+      background: color-mix(in srgb, var(--warning) 12%, transparent);
+      padding: 7px 10px;
+      font-size: 12px;
+    }
+
+    .alert-banner {
+      border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 10px 14px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    /* Global Drop Overlay */
+    .drop-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: color-mix(in srgb, var(--bg) 88%, transparent);
+      backdrop-filter: blur(4px);
+    }
+    .drop-overlay-card {
+      max-width: 480px;
+      width: 100%;
+      border-radius: 16px;
+      border: 2px dashed var(--primary);
+      background: var(--surface);
+      padding: 36px 24px;
+      text-align: center;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); display: inline-block; }
+    .text-link { background: none; border: none; color: var(--link); font-size: 12px; cursor: pointer; padding: 0; }
+    .text-link:hover { text-decoration: underline; }
+    .row-between { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+  </style>
+</head>
+<body>
+
+  <!-- Global Drag & Drop Overlay -->
+  <div id="globalDropOverlay" class="drop-overlay hidden">
+    <div class="drop-overlay-card">
+      <div class="dropzone-icon">
+        <svg width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/>
+        </svg>
+      </div>
+      <strong style="font-size: 15px;">動画（または静止画）をここにドロップ</strong>
+      <span id="dropOverlayHint" class="muted mono">カード枠と瞬きループを自動検出します</span>
+    </div>
+  </div>
+
+  <input id="fileInput" type="file" accept="video/*,image/*,.mp4,.webm,.mov,.mkv,.png,.jpg,.jpeg,.webp" class="hidden" />
+  <video id="hiddenVideo" class="hidden" muted playsinline preload="auto" crossorigin="anonymous"></video>
+
+  <div class="app-shell">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark">GIF</div>
+        <div>
+          <h1>GameClip GIF Maker</h1>
+          <p>プロフィールカード枠＋瞬きループ（目を閉じた瞬間）を自動判定してブラウザ内でGIF化</p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <label class="toggle-pill" title="ドロップ時にプロフィールカード枠を自動検出します">
+          <input id="autoDetectToggle" type="checkbox" checked />
+          <span>枠自動検出</span>
+        </label>
+        <label class="toggle-pill" title="ドロップ時にキャラクターの瞬きを自動検出し、ループ起点・終点に設定します">
+          <input id="autoBlinkToggle" type="checkbox" checked />
+          <span>瞬きループ検出</span>
+        </label>
+        <label class="toggle-pill" title="検出完了後に自動でGIF生成まで開始します">
+          <input id="autoConvertToggle" type="checkbox" />
+          <span>自動GIF生成</span>
+        </label>
+        <button id="btnThemeToggle" type="button" class="btn" title="ライト / ダークテーマ切替">テーマ切替</button>
+        <button id="btnDemo" type="button" class="btn">サンプルで試す</button>
+        <button id="btnOpenFile" type="button" class="btn btn-primary">動画を開く</button>
+      </div>
+    </header>
+
+    <!-- Alert Banner -->
+    <div id="alertBanner" class="alert-banner hidden">
+      <span id="alertText"></span>
+      <button id="btnCloseAlert" type="button" class="text-link">閉じる</button>
+    </div>
+
+    <!-- Main 2-Column Workspace -->
+    <main class="workspace">
+      <!-- Left Column -->
+      <div class="col-stack">
+        <!-- Empty Dropzone -->
+        <section id="emptyDropZone" class="dropzone">
+          <div class="dropzone-inner">
+            <div class="dropzone-icon">
+              <svg width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+              </svg>
+            </div>
+            <div>
+              <div style="font-weight: 600; font-size: 14.5px; margin-bottom: 4px;">プロフィールカード録画をドラッグ＆ドロップ</div>
+              <div class="muted">MP4 / WebM / MOV 対応・動画はサーバーに送信されずブラウザ内だけで処理されます</div>
+            </div>
+            <div id="emptyPresetSummary" class="summary-chip mono">ドロップ時: カード枠自動検出 → 瞬きループ自動設定</div>
+            <div class="inline-group">
+              <button id="btnDropzoneSelect" type="button" class="btn btn-primary">動画を選ぶ</button>
+              <button id="btnDropzoneDemo" type="button" class="btn">サンプル動画で瞬き検出を試す</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Editor Stage -->
+        <section id="editorSection" class="card hidden">
+          <div class="card-header">
+            <div class="inline-group" style="min-width: 0;">
+              <span id="videoFileName" class="truncate" style="font-size: 12px; font-weight: 600; max-width: 190px;">sample.mp4</span>
+              <span id="videoMetaBadge" class="muted mono">1024×647 · 6.00s</span>
+              <button id="btnToggleDemoFrame" type="button" class="btn btn-sm hidden">枠切替: 装飾あり</button>
+            </div>
+            <div class="inline-group">
+              <button id="btnAutoDetect" type="button" class="btn btn-sm">枠自動検出</button>
+              <button id="btnBlinkDetectTop" type="button" class="btn btn-sm btn-primary">瞬きループ検出</button>
+              <div id="aspectGroup" class="seg-group">
+                <button data-aspect="free" type="button" class="seg-btn active">自由</button>
+                <button data-aspect="16:9" type="button" class="seg-btn">16:9</button>
+                <button data-aspect="1:1" type="button" class="seg-btn">1:1</button>
+              </div>
+              <button id="btnCenterCrop" type="button" class="btn btn-sm">中央</button>
+              <button id="btnFullCrop" type="button" class="btn btn-sm">全画面</button>
+            </div>
+          </div>
+
+          <div id="eyeRoiModeBanner" class="roi-banner hidden">
+            <strong>目の位置指定モード：画面上でキャラクターの目の周りをドラッグして囲ってください</strong>
+            <button id="btnCancelEyeRoiMode" type="button" class="btn btn-sm">キャンセル</button>
+          </div>
+
+          <div id="stageContainer" class="stage-wrap" tabindex="0">
+            <canvas id="stageCanvas" class="stage-canvas"></canvas>
+            <div class="hud-pill hud-left mono"><span id="stageHudText">X: 153  Y: 85  ·  718 × 406 px</span></div>
+            <div class="hud-pill hud-right">ドラッグ調整 / 矢印キー1px微調整</div>
+          </div>
+
+          <div id="timelineSection" class="timeline-box">
+            <div class="transport-row">
+              <button id="btnPlayPause" type="button" class="btn btn-primary btn-icon" title="再生 / 一時停止 (Space)">
+                <svg id="iconPlay" width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5.14v14l11-7-11-7z"/></svg>
+                <svg id="iconPause" width="16" height="16" class="hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+              </button>
+              <button id="btnStepBack" type="button" class="btn btn-sm">-1f</button>
+              <button id="btnStepFwd" type="button" class="btn btn-sm">+1f</button>
+
+              <div id="timelineTrack" class="track-wrap">
+                <div class="track-rail">
+                  <div id="timelineTrimBar" class="track-trim"></div>
+                </div>
+                <div id="timelineBlinkMarkers" class="track-markers"></div>
+                <div id="timelinePlayhead" class="track-head"></div>
+              </div>
+
+              <span id="timeDisplay" class="muted mono" style="min-width: 104px; text-align: right;">0.00s / 6.00s</span>
+            </div>
+
+            <div class="trim-row">
+              <div class="inline-group">
+                <span class="muted">開始(秒)</span>
+                <input id="inputStart" type="number" step="0.05" min="0" value="0" class="field-input mono" style="width: 78px;" />
+                <button id="btnSetStart" type="button" class="btn btn-sm">現在位置を開始に</button>
+                <span class="muted" style="margin-left: 4px;">長さ(秒)</span>
+                <input id="inputDuration" type="number" step="0.05" min="0.2" value="3.2" class="field-input mono" style="width: 78px;" />
+                <button id="btnSetEnd" type="button" class="btn btn-sm">現在位置を終了に</button>
+              </div>
+              <label class="inline-group" style="cursor: pointer; user-select: none;">
+                <input id="chkLoopRange" type="checkbox" checked />
+                <span class="muted">範囲内ループ再生</span>
+              </label>
+            </div>
+          </div>
+        </section>
+
+        <!-- Progress -->
+        <section id="progressSection" class="card card-pad hidden">
+          <div class="row-between">
+            <span id="progressLabel" style="font-weight: 600;">処理中...</span>
+            <div class="inline-group">
+              <span id="progressPct" class="muted mono">0%</span>
+              <button id="btnCancelTask" type="button" class="btn btn-sm">中止</button>
+            </div>
+          </div>
+          <div class="progress-rail">
+            <div id="progressBar" class="progress-fill"></div>
+          </div>
+        </section>
+
+        <!-- Result Preview -->
+        <section id="resultSection" class="card hidden">
+          <div class="card-header">
+            <div class="inline-group">
+              <span class="status-dot"></span>
+              <h2 class="card-title">生成されたGIFプレビュー</h2>
+              <span id="resultStats" class="muted mono"></span>
+            </div>
+            <div class="inline-group">
+              <button id="btnRegenerate" type="button" class="btn btn-sm">再生成</button>
+              <a id="btnDownloadGif" download="profile_card.gif" href="#" class="btn btn-sm btn-primary">GIFをダウンロード</a>
+            </div>
+          </div>
+          <div class="result-preview checkerboard">
+            <img id="resultGifImg" alt="生成されたGIF" />
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Sidebar -->
+      <aside class="col-stack">
+        <!-- 1. Blink Loop Auto-Detection -->
+        <section class="card card-pad">
+          <div class="card-title-row">
+            <h2 class="card-title">瞬きループ自動判定（閉眼ピーク）</h2>
+            <span id="blinkBadge" class="muted mono">待機中</span>
+          </div>
+          <p class="muted" style="margin: 0;">
+            頭の揺れ・キラキラ演出を除外し、目を閉じた瞬間を起点〜終点に設定します（逆さ・斜め構図対応）。
+          </p>
+
+          <div id="blinkCurveWrap" class="sub-box hidden">
+            <div class="row-between muted">
+              <span>瞬き波形（クリックで移動）</span>
+              <span id="blinkEyeModeLabel" class="mono">目位置: 自動</span>
+            </div>
+            <canvas id="blinkCurveCanvas" class="sparkline-canvas"></canvas>
+            <div id="blinkPairList" class="pair-list"></div>
+          </div>
+
+          <div class="grid-2">
+            <button id="btnBlinkDetectSide" type="button" disabled class="btn btn-primary">瞬きループを検出</button>
+            <button id="btnPickEyeRoi" type="button" disabled class="btn">目の位置を指定</button>
+          </div>
+          <div id="eyeRoiResetRow" class="row-between hidden">
+            <span class="muted">手動の目エリアで検出中</span>
+            <button id="btnResetEyeRoi" type="button" class="text-link">自動探索に戻す</button>
+          </div>
+        </section>
+
+        <!-- 2. Card Frame Auto-Detection -->
+        <section class="card card-pad">
+          <div class="card-title-row">
+            <h2 class="card-title">プロフィールカード枠 自動検出</h2>
+            <span id="detectBadge" class="muted mono">待機中</span>
+          </div>
+
+          <label class="row-between" style="cursor: pointer; user-select: none;">
+            <span>リボン・装飾のはみ出しを含める</span>
+            <input id="chkIncludeOrnaments" type="checkbox" checked />
+          </label>
+
+          <div class="row-between">
+            <span class="muted">枠の余白微調整</span>
+            <div class="inline-group">
+              <input id="rangeDetectMargin" type="range" min="-6" max="16" step="1" value="0" style="width: 100px;" />
+              <span id="marginReadout" class="mono" style="width: 42px; text-align: right;">0 px</span>
+            </div>
+          </div>
+
+          <div id="detectDetailBox" class="sub-box muted mono hidden"></div>
+          <button id="btnAutoDetectSide" type="button" disabled class="btn" style="width: 100%;">現在フレームからカード枠を再検出</button>
+        </section>
+
+        <!-- 3. Coordinates -->
+        <section class="card card-pad">
+          <div class="card-title-row">
+            <h2 class="card-title">切り抜き座標・サイズ (px)</h2>
+            <span id="cropAspectReadout" class="muted mono">16:9</span>
+          </div>
+          <div class="grid-2">
+            <label class="field-label"><span>X (左端)</span><input id="inputCropX" type="number" min="0" step="1" value="153" class="field-input mono" /></label>
+            <label class="field-label"><span>Y (上端)</span><input id="inputCropY" type="number" min="0" step="1" value="85" class="field-input mono" /></label>
+            <label class="field-label"><span>幅 (W)</span><input id="inputCropW" type="number" min="16" step="1" value="718" class="field-input mono" /></label>
+            <label class="field-label"><span>高さ (H)</span><input id="inputCropH" type="number" min="16" step="1" value="406" class="field-input mono" /></label>
+          </div>
+        </section>
+
+        <!-- 4. GIF Settings -->
+        <section class="card card-pad">
+          <h2 class="card-title">GIF出力設定</h2>
+
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div class="row-between">
+              <span class="muted">フレームレート (FPS)</span>
+              <span id="frameEstimateText" class="muted mono">約 48 フレーム</span>
+            </div>
+            <div id="fpsGroup" class="grid-5">
+              <button data-fps="10" type="button" class="fps-btn mono">10</button>
+              <button data-fps="15" type="button" class="fps-btn mono active">15</button>
+              <button data-fps="20" type="button" class="fps-btn mono">20</button>
+              <button data-fps="24" type="button" class="fps-btn mono">24</button>
+              <button data-fps="30" type="button" class="fps-btn mono">30</button>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div class="row-between">
+              <span class="muted">出力サイズ (リサイズ)</span>
+              <span id="outResReadout" class="muted mono">718 × 406 px</span>
+            </div>
+            <div class="inline-group" style="flex-wrap: nowrap;">
+              <select id="selectScaleMode" class="field-select" style="flex: 1;">
+                <option value="orig">原寸（切り抜きサイズそのまま）</option>
+                <option value="800">幅 800px にリサイズ</option>
+                <option value="640">幅 640px にリサイズ</option>
+                <option value="480">幅 480px にリサイズ</option>
+                <option value="custom">カスタム幅を指定</option>
+              </select>
+              <input id="inputCustomWidth" type="number" min="32" max="1920" step="2" value="640" class="field-input mono hidden" style="width: 78px;" />
+            </div>
+          </div>
+
+          <label class="field-label">
+            <span>画質・パレット最適化</span>
+            <select id="selectQuality" class="field-select">
+              <option value="high">標準・高画質（256色 + Bayerディザ）</option>
+              <option value="pixel">くっきり（256色・ディザなし）</option>
+              <option value="light">軽量（128色 + Bayerディザ）</option>
+            </select>
+          </label>
+
+          <label class="inline-group" style="cursor: pointer; user-select: none;">
+            <input id="chkGifLoop" type="checkbox" checked />
+            <span style="font-size: 12px;">無限ループ再生する</span>
+          </label>
+
+          <div id="frameWarnBox" class="warn-box hidden">
+            フレーム数が多いため変換に時間がかかる場合があります。FPSや長さを抑えると高速＆軽量になります。
+          </div>
+
+          <button id="btnGenerate" type="button" disabled class="btn btn-primary btn-lg">動画を読み込むとGIFを作成できます</button>
+        </section>
+
+        <!-- 5. FFmpeg Export -->
+        <section class="card card-pad">
+          <div class="card-title-row">
+            <h2 class="card-title">FFmpeg / Windows用 .bat 生成</h2>
+            <span class="muted">枠＆瞬き区間連動</span>
+          </div>
+          <pre id="ffmpegPreview" class="code-pre mono"></pre>
+          <div class="grid-2">
+            <button id="btnCopyFfmpeg" type="button" class="btn">コマンドをコピー</button>
+            <button id="btnDownloadBat" type="button" class="btn">.bat をダウンロード</button>
+          </div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  const STORAGE_STATE_KEY = 'gameclip_gif_maker_web_v1';
+  const STORAGE_THEME_KEY = 'gameclip_gif_maker_theme_v1';
+
+  function storageGet(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } }
+  function storageSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
+
+  // Theme init
+  const savedTheme = storageGet(STORAGE_THEME_KEY);
+  const initialTheme = savedTheme || (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  document.documentElement.setAttribute('data-theme', initialTheme);
+
+  const savedState = storageGet(STORAGE_STATE_KEY) || {};
+  const state = {
+    cropX: Number.isFinite(savedState.cropX) ? savedState.cropX : 153,
+    cropY: Number.isFinite(savedState.cropY) ? savedState.cropY : 85,
+    cropW: Number.isFinite(savedState.cropW) ? savedState.cropW : 718,
+    cropH: Number.isFinite(savedState.cropH) ? savedState.cropH : 406,
+    aspect: savedState.aspect || 'free',
+    fps: savedState.fps || 15,
+    scaleMode: savedState.scaleMode || 'orig',
+    customWidth: savedState.customWidth || 640,
+    quality: savedState.quality || 'high',
+    loop: savedState.loop !== undefined ? savedState.loop : true,
+    autoDetect: savedState.autoDetect !== undefined ? savedState.autoDetect : true,
+    autoBlink: savedState.autoBlink !== undefined ? savedState.autoBlink : true,
+    includeOrnaments: savedState.includeOrnaments !== undefined ? savedState.includeOrnaments : true,
+    detectMargin: Number.isFinite(savedState.detectMargin) ? savedState.detectMargin : 0,
+    autoConvert: !!savedState.autoConvert,
+    startTime: 0,
+    duration: 3.2,
+    currentTime: 0,
+    loopRange: true,
+    isPlaying: false,
+    isBusy: false,
+    cancelRequested: false,
+    demoOrnamental: true,
+    eyeRoiMode: false,
+    manualEyeRoi: null,
+  };
+
+  let activeSource = null;
+  let lastDetection = null;
+  let lastBlinkResult = null;
+  let lastGifUrl = null;
+
+  const $ = (id) => document.getElementById(id);
+  const el = {
+    globalDropOverlay: $('globalDropOverlay'), dropOverlayHint: $('dropOverlayHint'),
+    fileInput: $('fileInput'), hiddenVideo: $('hiddenVideo'),
+    autoDetectToggle: $('autoDetectToggle'), autoBlinkToggle: $('autoBlinkToggle'),
+    autoConvertToggle: $('autoConvertToggle'), btnThemeToggle: $('btnThemeToggle'),
+    btnDemo: $('btnDemo'), btnOpenFile: $('btnOpenFile'),
+    alertBanner: $('alertBanner'), alertText: $('alertText'), btnCloseAlert: $('btnCloseAlert'),
+    emptyDropZone: $('emptyDropZone'), emptyPresetSummary: $('emptyPresetSummary'),
+    btnDropzoneSelect: $('btnDropzoneSelect'), btnDropzoneDemo: $('btnDropzoneDemo'),
+    editorSection: $('editorSection'), videoFileName: $('videoFileName'), videoMetaBadge: $('videoMetaBadge'),
+    btnToggleDemoFrame: $('btnToggleDemoFrame'), btnAutoDetect: $('btnAutoDetect'),
+    btnBlinkDetectTop: $('btnBlinkDetectTop'), eyeRoiModeBanner: $('eyeRoiModeBanner'),
+    btnCancelEyeRoiMode: $('btnCancelEyeRoiMode'), stageContainer: $('stageContainer'),
+    stageCanvas: $('stageCanvas'), stageHudText: $('stageHudText'),
+    btnCenterCrop: $('btnCenterCrop'), btnFullCrop: $('btnFullCrop'),
+    timelineSection: $('timelineSection'), btnPlayPause: $('btnPlayPause'),
+    iconPlay: $('iconPlay'), iconPause: $('iconPause'),
+    btnStepBack: $('btnStepBack'), btnStepFwd: $('btnStepFwd'),
+    timelineTrack: $('timelineTrack'), timelineTrimBar: $('timelineTrimBar'),
+    timelineBlinkMarkers: $('timelineBlinkMarkers'), timelinePlayhead: $('timelinePlayhead'),
+    timeDisplay: $('timeDisplay'), inputStart: $('inputStart'), inputDuration: $('inputDuration'),
+    btnSetStart: $('btnSetStart'), btnSetEnd: $('btnSetEnd'), chkLoopRange: $('chkLoopRange'),
+    progressSection: $('progressSection'), progressLabel: $('progressLabel'),
+    progressPct: $('progressPct'), progressBar: $('progressBar'), btnCancelTask: $('btnCancelTask'),
+    resultSection: $('resultSection'), resultStats: $('resultStats'), resultGifImg: $('resultGifImg'),
+    btnRegenerate: $('btnRegenerate'), btnDownloadGif: $('btnDownloadGif'),
+    blinkBadge: $('blinkBadge'), blinkCurveWrap: $('blinkCurveWrap'),
+    blinkEyeModeLabel: $('blinkEyeModeLabel'), blinkCurveCanvas: $('blinkCurveCanvas'),
+    blinkPairList: $('blinkPairList'), btnBlinkDetectSide: $('btnBlinkDetectSide'),
+    btnPickEyeRoi: $('btnPickEyeRoi'), eyeRoiResetRow: $('eyeRoiResetRow'), btnResetEyeRoi: $('btnResetEyeRoi'),
+    chkIncludeOrnaments: $('chkIncludeOrnaments'), rangeDetectMargin: $('rangeDetectMargin'),
+    marginReadout: $('marginReadout'), detectBadge: $('detectBadge'), detectDetailBox: $('detectDetailBox'),
+    btnAutoDetectSide: $('btnAutoDetectSide'), cropAspectReadout: $('cropAspectReadout'),
+    inputCropX: $('inputCropX'), inputCropY: $('inputCropY'), inputCropW: $('inputCropW'), inputCropH: $('inputCropH'),
+    frameEstimateText: $('frameEstimateText'), outResReadout: $('outResReadout'),
+    selectScaleMode: $('selectScaleMode'), inputCustomWidth: $('inputCustomWidth'),
+    selectQuality: $('selectQuality'), chkGifLoop: $('chkGifLoop'),
+    frameWarnBox: $('frameWarnBox'), btnGenerate: $('btnGenerate'),
+    ffmpegPreview: $('ffmpegPreview'), btnCopyFfmpeg: $('btnCopyFfmpeg'), btnDownloadBat: $('btnDownloadBat'),
+  };
+
+  function showAlert(msg) { el.alertText.textContent = msg; el.alertBanner.classList.remove('hidden'); }
+  function hideAlert() { el.alertBanner.classList.add('hidden'); }
+  el.btnCloseAlert.addEventListener('click', hideAlert);
+
+  el.btnThemeToggle.addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    storageSet(STORAGE_THEME_KEY, next);
+    drawStage();
+    if (lastBlinkResult) drawBlinkCurve();
+  });
+
+  function persistState() {
+    storageSet(STORAGE_STATE_KEY, {
+      cropX: state.cropX, cropY: state.cropY, cropW: state.cropW, cropH: state.cropH,
+      aspect: state.aspect, fps: state.fps, scaleMode: state.scaleMode,
+      customWidth: state.customWidth, quality: state.quality, loop: state.loop,
+      autoDetect: state.autoDetect, autoBlink: state.autoBlink,
+      includeOrnaments: state.includeOrnaments, detectMargin: state.detectMargin,
+      autoConvert: state.autoConvert,
+    });
+  }
+
+  // ---- Demo Profile Card Video (with blinks at 1.15s & 4.35s) ----
+  const DEMO_SOURCE = {
+    type: 'demo', name: 'demo_profile_card_blink.mp4', width: 1024, height: 647, duration: 6.0,
+    drawAt(ctx, t) {
+      const W = 1024, H = 647;
+      ctx.fillStyle = '#8ad3f5';
+      ctx.fillRect(0, 0, W, 34); ctx.fillRect(0, H - 34, W, 34);
+      ctx.fillStyle = '#475569'; ctx.fillRect(0, 34, W, H - 68);
+      ctx.fillStyle = '#5a687a'; ctx.fillRect(500, 92, 476, 448);
+      ctx.strokeStyle = '#334155'; ctx.lineWidth = 2; ctx.strokeRect(500, 92, 476, 448);
+      ctx.fillStyle = '#58677a'; ctx.fillRect(10, 44, 340, 40);
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.35)'; ctx.fillRect(0, 34, W, H - 68);
+
+      const btnY = 535, btnH = 56;
+      ctx.fillStyle = '#f1f5f9'; ctx.fillRect(190, btnY, 195, btnH); ctx.fillRect(414, btnY, 195, btnH);
+      ctx.fillStyle = '#fde047'; ctx.fillRect(638, btnY, 195, btnH);
+      ctx.fillStyle = '#1e293b'; ctx.font = 'bold 20px sans-serif';
+      ctx.fillText('閉じる', 256, btnY + 35); ctx.fillText('名刺をリセット', 442, btnY + 35); ctx.fillText('編集', 716, btnY + 35);
+
+      const cx = 153, cy = 85, cw = 718, ch = 406;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(cx, cy, cw, ch); ctx.clip();
+
+      const grad = ctx.createLinearGradient(cx, cy, cx + cw, cy + ch);
+      grad.addColorStop(0, '#fbcfe8'); grad.addColorStop(0.5, '#fef3c7'); grad.addColorStop(1, '#bae6fd');
+      ctx.fillStyle = grad; ctx.fillRect(cx, cy, cw, ch);
+
+      for (let i = 0; i < 8; i++) {
+        const bx = cx + ((i * 113 + t * 38) % cw);
+        const by = cy + 75 + Math.sin(t * 1.6 + i) * 100 + (i % 3) * 55;
+        ctx.fillStyle = 'rgba(255,255,255,0.42)';
+        ctx.beginPath(); ctx.arc(bx, by, 22 + (i % 3) * 11, 0, Math.PI * 2); ctx.fill();
+      }
+
+      const swayX = Math.sin(((t - 1.15) / 3.2) * Math.PI * 2) * 8;
+      const swayY = Math.cos(((t - 1.15) / 3.2) * Math.PI * 2) * 5;
+      const headX = cx + 265 + swayX, headY = cy + 180 + swayY;
+
+      ctx.fillStyle = '#f472b6'; ctx.beginPath(); ctx.ellipse(headX, headY + 75, 138, 178, -0.1, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffe8dc'; ctx.beginPath(); ctx.ellipse(headX, headY, 82, 86, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(244, 114, 182, 0.25)';
+      ctx.beginPath(); ctx.ellipse(headX - 42, headY + 22, 16, 8, 0, 0, Math.PI * 2); ctx.ellipse(headX + 42, headY + 22, 16, 8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#9f1239'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(headX, headY + 34, 12, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+
+      let blink = 0;
+      for (const bt of [1.15, 4.35]) {
+        const d = Math.abs(t - bt);
+        if (d < 0.16) blink = Math.max(blink, Math.cos((d / 0.16) * Math.PI * 0.5));
+      }
+
+      for (const side of [-1, 1]) {
+        const ex = headX + side * 34, ey = headY + 2, eyeW = 22, eyeH = 22, openH = eyeH * (1 - blink);
+        if (openH > 2.2) {
+          ctx.save();
+          ctx.beginPath(); ctx.ellipse(ex, ey + (eyeH - openH) * 0.35, eyeW, openH, 0, 0, Math.PI * 2); ctx.clip();
+          ctx.fillStyle = '#ffffff'; ctx.fillRect(ex - eyeW - 2, ey - eyeH - 2, eyeW * 2 + 4, eyeH * 2 + 4);
+          ctx.fillStyle = side < 0 ? '#2563eb' : '#d97706';
+          ctx.beginPath(); ctx.ellipse(ex, ey + 2, 13, 16, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#1e1b4b'; ctx.beginPath(); ctx.arc(ex, ey + 3, 6.5, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(ex - 5, ey - 4, 4.2, 0, Math.PI * 2); ctx.arc(ex + 5, ey + 6, 2.2, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+        }
+        const lashY = ey - openH * 0.65 + blink * 8;
+        ctx.strokeStyle = '#3b1d2a'; ctx.lineWidth = 4.5; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(ex - eyeW - 1, lashY + 4);
+        ctx.quadraticCurveTo(ex, lashY - (1 - blink) * 9 + blink * 5, ex + eyeW + 1, lashY + 4); ctx.stroke();
+      }
+
+      ctx.fillStyle = '#f472b6';
+      ctx.beginPath();
+      ctx.moveTo(headX - 88, headY - 22); ctx.quadraticCurveTo(headX, headY - 125, headX + 88, headY - 22);
+      ctx.lineTo(headX + 55, headY - 36); ctx.lineTo(headX + 20, headY - 24); ctx.lineTo(headX - 18, headY - 38); ctx.lineTo(headX - 52, headY - 22);
+      ctx.closePath(); ctx.fill();
+
+      for (let s = 0; s < 6; s++) {
+        const sx = cx + 80 + ((s * 107) % (cw - 160)), sy = cy + 65 + ((s * 83) % (ch - 130));
+        const sp = Math.max(0, Math.sin(t * 5.0 + s * 1.7) - 0.65) * 2.8;
+        if (sp > 0.1) {
+          const r = 6 + sp * 9;
+          ctx.fillStyle = `rgba(255,255,255,${Math.min(1, sp)})`;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy - r); ctx.lineTo(sx + r * 0.28, sy - r * 0.28); ctx.lineTo(sx + r, sy); ctx.lineTo(sx + r * 0.28, sy + r * 0.28);
+          ctx.lineTo(sx, sy + r); ctx.lineTo(sx - r * 0.28, sy + r * 0.28); ctx.lineTo(sx - r, sy); ctx.lineTo(sx - r * 0.28, sy - r * 0.28);
+          ctx.closePath(); ctx.fill();
+        }
+      }
+
+      ctx.fillStyle = '#dc2626'; ctx.fillRect(cx + 425, cy + 48, 265, 26);
+      ctx.fillStyle = '#ffffff'; ctx.font = 'bold 14px monospace'; ctx.fillText('★ LV 165      PLAYER', cx + 438, cy + 66);
+      ctx.restore();
+
+      if (!state.demoOrnamental) {
+        ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 4; ctx.strokeRect(cx + 2, cy + 2, cw - 4, ch - 4);
+        ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.5; ctx.strokeRect(cx, cy, cw, ch);
+      } else {
+        ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 6; ctx.strokeRect(cx + 2, cy + 2, cw - 4, ch - 4);
+        ctx.strokeStyle = '#78350f'; ctx.lineWidth = 1.5; ctx.strokeRect(cx - 1, cy - 1, cw + 2, ch + 2);
+        ctx.fillStyle = '#f472b6';
+        ctx.beginPath(); ctx.moveTo(cx + 170, cy); ctx.lineTo(cx + 150, cy - 20); ctx.lineTo(cx + 245, cy - 4); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(cx + cw - 170, cy); ctx.lineTo(cx + cw - 150, cy - 20); ctx.lineTo(cx + cw - 245, cy - 4); ctx.closePath(); ctx.fill();
+        const drawEmblem = (ex, ey) => {
+          ctx.fillStyle = '#fde047'; ctx.strokeStyle = '#92400e'; ctx.lineWidth = 2;
+          for (const ox of [-18, 0, 18]) {
+            ctx.beginPath(); ctx.moveTo(ex + ox, ey - 13); ctx.lineTo(ex + ox + 11, ey); ctx.lineTo(ex + ox, ey + 13); ctx.lineTo(ex + ox - 11, ey); ctx.closePath(); ctx.fill(); ctx.stroke();
+          }
+        };
+        drawEmblem(cx + cw / 2, cy + 1); drawEmblem(cx + cw / 2, cy + ch - 1);
+        const drawSideOrn = (sx, sy) => {
+          ctx.fillStyle = '#fde047'; ctx.strokeStyle = '#92400e'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(sx, sy - 24); ctx.lineTo(sx + 11, sy); ctx.lineTo(sx, sy + 24); ctx.lineTo(sx - 11, sy); ctx.closePath(); ctx.fill(); ctx.stroke();
+        };
+        drawSideOrn(cx, cy + ch / 2); drawSideOrn(cx + cw, cy + ch / 2);
+        for (const [kx, ky] of [[cx, cy], [cx + cw, cy], [cx, cy + ch], [cx + cw, cy + ch]]) {
+          ctx.fillStyle = '#fef08a'; ctx.strokeStyle = '#92400e'; ctx.lineWidth = 2;
+          ctx.fillRect(kx - 10, ky - 10, 20, 20); ctx.strokeRect(kx - 10, ky - 10, 20, 20);
+        }
+      }
+    },
+  };
+
+  // ---- 2-Stage Profile Card Frame Detector ----
+  function detectProfileCardFrame(rgba, width, height) {
+    const t0 = performance.now();
+    const s1 = width > 512 ? 512 / width : 1;
+    const W = Math.max(64, Math.round(width * s1)), H = Math.max(64, Math.round(height * s1));
+    const R = new Float32Array(W * H), G = new Float32Array(W * H), B = new Float32Array(W * H), L = new Float32Array(W * H);
+
+    for (let y = 0; y < H; y++) {
+      const sy0 = Math.floor(y / s1), sy1 = Math.min(height, Math.max(sy0 + 1, Math.floor((y + 1) / s1)));
+      for (let x = 0; x < W; x++) {
+        const sx0 = Math.floor(x / s1), sx1 = Math.min(width, Math.max(sx0 + 1, Math.floor((x + 1) / s1)));
+        let rs = 0, gs = 0, bs = 0, cnt = 0;
+        for (let sy = sy0; sy < sy1; sy++) {
+          let p = (sy * width + sx0) * 4;
+          for (let sx = sx0; sx < sx1; sx++) { rs += rgba[p]; gs += rgba[p + 1]; bs += rgba[p + 2]; p += 4; cnt++; }
+        }
+        const i = y * W + x, r = rs / cnt, g = gs / cnt, b = bs / cnt;
+        R[i] = r; G[i] = g; B[i] = b; L[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+      }
+    }
+
+    const gx = new Float32Array(W * H), gy = new Float32Array(W * H);
+    for (let y = 1; y < H - 1; y++) {
+      const row = y * W;
+      for (let x = 1; x < W - 1; x++) {
+        const i = row + x;
+        gx[i] = (Math.abs(R[i + 1] - R[i - 1]) + Math.abs(G[i + 1] - G[i - 1]) + Math.abs(B[i + 1] - B[i - 1])) / 3;
+        gy[i] = (Math.abs(R[i + W] - R[i - W]) + Math.abs(G[i + W] - G[i - W]) + Math.abs(B[i + W] - B[i - W])) / 3;
+      }
+    }
+
+    const edgeThresh = 12, colScore = new Float32Array(W), rowScore = new Float32Array(H);
+    const yStartProj = Math.floor(H * 0.16), yEndProj = Math.floor(H * 0.78);
+    const xStartProj = Math.floor(W * 0.18), xEndProj = Math.floor(W * 0.82);
+
+    for (let x = 4; x < W - 4; x++) {
+      let sum = 0;
+      for (let y = yStartProj; y < yEndProj; y++) {
+        const e = Math.max(gx[y * W + x], gx[y * W + x - 1], gx[y * W + x + 1]);
+        if (e > edgeThresh) sum += Math.min(45, e);
+      }
+      colScore[x] = sum / (yEndProj - yStartProj);
+    }
+
+    const mW = Math.max(6, Math.floor(W * 0.08));
+    for (let y = 4; y < H - 4; y++) {
+      let sum = 0, leftM = 0, rightM = 0, mCnt = 0;
+      for (let x = xStartProj; x < xEndProj; x++) {
+        const e = Math.max(gy[y * W + x], gy[(y - 1) * W + x], gy[(y + 1) * W + x]);
+        if (e > edgeThresh) sum += Math.min(45, e);
+      }
+      for (let x = 2; x < mW; x++) {
+        leftM += Math.max(gy[y * W + x], gy[(y - 1) * W + x], gy[(y + 1) * W + x]);
+        rightM += Math.max(gy[y * W + (W - 1 - x)], gy[(y - 1) * W + (W - 1 - x)], gy[(y + 1) * W + (W - 1 - x)]);
+        mCnt++;
+      }
+      rowScore[y] = Math.max(0, sum / (xEndProj - xStartProj) - (Math.min(leftM, rightM) / Math.max(1, mCnt)) * 1.1);
+    }
+
+    function pickTopPeaks(scores, minIdx, maxIdx, count, minSep) {
+      const cands = [];
+      for (let i = minIdx; i <= maxIdx; i++) cands.push({ idx: i, score: scores[i] });
+      cands.sort((a, b) => b.score - a.score);
+      const peaks = [];
+      for (const c of cands) {
+        if (peaks.every((p) => Math.abs(p.idx - c.idx) >= minSep)) { peaks.push(c); if (peaks.length >= count) break; }
+      }
+      return peaks;
+    }
+
+    const x1Peaks = pickTopPeaks(colScore, Math.floor(W * 0.03), Math.floor(W * 0.44), 14, 3);
+    const x2Peaks = pickTopPeaks(colScore, Math.floor(W * 0.56), Math.floor(W * 0.97), 14, 3);
+    const y1Peaks = pickTopPeaks(rowScore, Math.floor(H * 0.03), Math.floor(H * 0.44), 14, 3);
+    const y2Peaks = pickTopPeaks(rowScore, Math.floor(H * 0.50), Math.floor(H * 0.94), 14, 3);
+
+    const stepOff = 3;
+    const buildVertPrefix = (x, dirIn) => {
+      const hitP = new Int32Array(H + 1), strP = new Float32Array(H + 1), lumP = new Float32Array(H + 1);
+      const xi = Math.max(0, Math.min(W - 1, x + dirIn * stepOff)), xo = Math.max(0, Math.min(W - 1, x - dirIn * stepOff));
+      for (let y = 0; y < H; y++) {
+        const e = (y > 0 && y < H - 1) ? Math.max(gx[y * W + x], gx[y * W + x - 1], gx[y * W + x + 1]) : 0;
+        const h = e > edgeThresh ? 1 : 0;
+        hitP[y + 1] = hitP[y] + h; strP[y + 1] = strP[y] + (h ? Math.min(40, e) : 0); lumP[y + 1] = lumP[y] + (L[y * W + xi] - L[y * W + xo]);
+      }
+      return { x, hitP, strP, lumP };
+    };
+    const buildHorizPrefix = (y, dirIn) => {
+      const hitP = new Int32Array(W + 1), strP = new Float32Array(W + 1), lumP = new Float32Array(W + 1);
+      const yi = Math.max(0, Math.min(H - 1, y + dirIn * stepOff)), yo = Math.max(0, Math.min(H - 1, y - dirIn * stepOff));
+      for (let x = 0; x < W; x++) {
+        const e = (x > 0 && x < W - 1) ? Math.max(gy[y * W + x], gy[(y - 1) * W + x], gy[(y + 1) * W + x]) : 0;
+        const h = e > edgeThresh ? 1 : 0;
+        hitP[x + 1] = hitP[x] + h; strP[x + 1] = strP[x] + (h ? Math.min(40, e) : 0); lumP[x + 1] = lumP[x] + (L[yi * W + x] - L[yo * W + x]);
+      }
+      return { y, hitP, strP, lumP };
+    };
+
+    const x1Pre = x1Peaks.map((p) => buildVertPrefix(p.idx, +1));
+    const x2Pre = x2Peaks.map((p) => buildVertPrefix(p.idx, -1));
+    const y1Pre = y1Peaks.map((p) => buildHorizPrefix(p.idx, +1));
+    const y2Pre = y2Peaks.map((p) => buildHorizPrefix(p.idx, -1));
+
+    const segFrac = (pre, a, b) => (b > a ? (pre.hitP[b + 1] - pre.hitP[a]) / (b - a + 1) : 0);
+    const segAvg  = (pre, a, b) => (b > a ? (pre.strP[b + 1] - pre.strP[a]) / (b - a + 1) : 0);
+    const segLum  = (pre, a, b) => (b > a ? (pre.lumP[b + 1] - pre.lumP[a]) / (b - a + 1) : 0);
+
+    let bestRect = null, bestScore = -1e9;
+    const extX = Math.max(8, Math.floor(W * 0.04)), extY = Math.max(8, Math.floor(H * 0.05));
+
+    for (const px1 of x1Pre) {
+      const x1 = px1.x;
+      for (const px2 of x2Pre) {
+        const x2 = px2.x, rw = x2 - x1;
+        if (rw < W * 0.30 || rw > W * 0.92) continue;
+        const qx = Math.max(8, Math.floor(rw * 0.20));
+        for (const py1 of y1Pre) {
+          const y1 = py1.y;
+          for (const py2 of y2Pre) {
+            const y2 = py2.y, rh = y2 - y1;
+            if (rh < H * 0.28 || rh > H * 0.88) continue;
+            const ar = rw / rh;
+            if (ar < 1.05 || ar > 2.50) continue;
+            const qy = Math.max(8, Math.floor(rh * 0.20));
+
+            const lFrac = segFrac(px1, y1, y2), rFrac = segFrac(px2, y1, y2), tFrac = segFrac(py1, x1, x2), bFrac = segFrac(py2, x1, x2);
+            const minCornerEnd = Math.min(
+              segFrac(px1, y1, y1 + qy), segFrac(px1, y2 - qy, y2), segFrac(px2, y1, y1 + qy), segFrac(px2, y2 - qy, y2),
+              segFrac(py1, x1, x1 + qx), segFrac(py1, x2 - qx, x2), segFrac(py2, x1, x1 + qx), segFrac(py2, x2 - qx, x2)
+            );
+            const minFrac = Math.min(lFrac, rFrac, tFrac, bFrac), meanFrac = (lFrac + rFrac + tFrac + bFrac) / 4;
+            const meanEdge = (segAvg(px1, y1, y2) + segAvg(px2, y1, y2) + segAvg(py1, x1, x2) + segAvg(py2, x1, x2)) / 4;
+            const stepScore =
+              Math.max(-20, Math.min(60, segLum(px1, y1, y2))) + Math.max(-20, Math.min(60, segLum(px2, y1, y2))) +
+              Math.max(-20, Math.min(60, segLum(py1, x1, x2))) + Math.max(-20, Math.min(60, segLum(py2, x1, x2)));
+            const topOut = (segFrac(py1, Math.max(2, x1 - extX), Math.max(2, x1 - 3)) + segFrac(py1, Math.min(W - 3, x2 + 3), Math.min(W - 3, x2 + extX))) / 2;
+            const botOut = (segFrac(py2, Math.max(2, x1 - extX), Math.max(2, x1 - 3)) + segFrac(py2, Math.min(W - 3, x2 + 3), Math.min(W - 3, x2 + extX))) / 2;
+            const leftOut = (segFrac(px1, Math.max(2, y1 - extY), Math.max(2, y1 - 3)) + segFrac(px1, Math.min(H - 3, y2 + 3), Math.min(H - 3, y2 + extY))) / 2;
+            const rightOut = (segFrac(px2, Math.max(2, y1 - extY), Math.max(2, y1 - 3)) + segFrac(px2, Math.min(H - 3, y2 + 3), Math.min(H - 3, y2 + extY))) / 2;
+            const centerPenalty = (Math.abs((x1 + x2) / 2 - W / 2) / W) * 55;
+            const score = meanFrac * 50 + minFrac * 40 + minCornerEnd * 55 + meanEdge * 1.0 + stepScore * 0.40 - (topOut + botOut + leftOut + rightOut) * 24 - centerPenalty;
+            if (score > bestScore) { bestScore = score; bestRect = { x1, y1, x2, y2, minCornerEnd }; }
+          }
+        }
+      }
+    }
+    if (!bestRect) return null;
+
+    const lumAt = (x, y) => { const p = (y * width + x) * 4; return 0.299 * rgba[p] + 0.587 * rgba[p + 1] + 0.114 * rgba[p + 2]; };
+    const rgbDiffAt = (x1, y1, x2, y2) => {
+      const p1 = (y1 * width + x1) * 4, p2 = (y2 * width + x2) * 4;
+      return (Math.abs(rgba[p1] - rgba[p2]) + Math.abs(rgba[p1 + 1] - rgba[p2 + 1]) + Math.abs(rgba[p1 + 2] - rgba[p2 + 2])) / 3;
+    };
+
+    let cx1 = Math.round(bestRect.x1 / s1), cy1 = Math.round(bestRect.y1 / s1);
+    let cx2 = Math.round(bestRect.x2 / s1), cy2 = Math.round(bestRect.y2 / s1);
+    const refRad = Math.max(4, Math.round(width * 0.008));
+
+    function refineVertCore(xEst, dirOut, ya, yb) {
+      const scores = [], yStep = Math.max(1, Math.floor((yb - ya) / 140));
+      let maxS = 0;
+      for (let x = Math.max(3, xEst - refRad); x <= Math.min(width - 4, xEst + refRad); x++) {
+        let sum = 0, cnt = 0;
+        for (let y = ya + 10; y <= yb - 10; y += yStep) { sum += rgbDiffAt(x - 1, y, x + 1, y); cnt++; }
+        const avg = sum / Math.max(1, cnt); scores.push({ x, avg }); if (avg > maxS) maxS = avg;
+      }
+      if (dirOut < 0) { for (const s of scores) if (s.avg >= maxS * 0.65) return s.x; }
+      else { for (let i = scores.length - 1; i >= 0; i--) if (scores[i].avg >= maxS * 0.65) return scores[i].x; }
+      return xEst;
+    }
+    function refineHorizCore(yEst, dirOut, xa, xb) {
+      const scores = [], xStep = Math.max(1, Math.floor((xb - xa) / 180));
+      let maxS = 0;
+      for (let y = Math.max(3, yEst - refRad); y <= Math.min(height - 4, yEst + refRad); y++) {
+        let sum = 0, cnt = 0;
+        for (let x = xa + 10; x <= xb - 10; x += xStep) { sum += rgbDiffAt(x, y - 1, x, y + 1); cnt++; }
+        const avg = sum / Math.max(1, cnt); scores.push({ y, avg }); if (avg > maxS) maxS = avg;
+      }
+      if (dirOut < 0) { for (const s of scores) if (s.avg >= maxS * 0.65) return s.y; }
+      else { for (let i = scores.length - 1; i >= 0; i--) if (scores[i].avg >= maxS * 0.65) return scores[i].y; }
+      return yEst;
+    }
+
+    cx1 = refineVertCore(cx1, -1, cy1, cy2); cx2 = refineVertCore(cx2, +1, cy1, cy2);
+    cy1 = refineHorizCore(cy1, -1, cx1, cx2); cy2 = refineHorizCore(cy2, +1, cx1, cx2);
+
+    const cw = cx2 - cx1, ch = cy2 - cy1, bgLums = [];
+    const safeGapX = Math.max(18, Math.round(cw * 0.045)), safeBandX = Math.max(14, Math.round(cw * 0.04));
+    for (let y = cy1; y <= cy2; y += 3) {
+      for (let x = Math.max(4, cx1 - safeGapX - safeBandX); x < Math.max(4, cx1 - safeGapX); x += 2) bgLums.push(lumAt(x, y));
+      for (let x = Math.min(width - 5, cx2 + safeGapX); x < Math.min(width - 5, cx2 + safeGapX + safeBandX); x += 2) bgLums.push(lumAt(x, y));
+    }
+    bgLums.sort((a, b) => a - b);
+    const bgLumP99 = bgLums.length ? bgLums[Math.min(bgLums.length - 1, Math.floor(bgLums.length * 0.99))] : 135;
+    const ornLumThresh = Math.min(210, Math.max(148, bgLumP99 + 18));
+
+    const maxTop = Math.round(ch * 0.09), maxBot = Math.round(ch * 0.07), maxSide = Math.round(cw * 0.05);
+    const outlinePad = Math.max(1, Math.round(width * 0.0018)), minPixSupport = Math.max(2, Math.round(width * 0.002));
+
+    function scanBand(dir, maxDist) {
+      let lastActive = 0, emptyStreak = 0;
+      const xPad = Math.round(cw * 0.02), yPad = Math.round(ch * 0.02);
+      for (let d = 1; d <= maxDist; d++) {
+        let count = 0;
+        if (dir === 'top') { const y = cy1 - d; if (y < 2) break; for (let x = Math.max(2, cx1 - xPad); x <= Math.min(width - 3, cx2 + xPad); x++) if (lumAt(x, y) > ornLumThresh) count++; }
+        else if (dir === 'bot') { const y = cy2 + d; if (y >= height - 2) break; for (let x = Math.max(2, cx1 - xPad); x <= Math.min(width - 3, cx2 + xPad); x++) if (lumAt(x, y) > ornLumThresh) count++; }
+        else if (dir === 'left') { const x = cx1 - d; if (x < 2) break; for (let y = Math.max(2, cy1 - yPad); y <= Math.min(height - 3, cy2 + yPad); y++) if (lumAt(x, y) > ornLumThresh) count++; }
+        else if (dir === 'right') { const x = cx2 + d; if (x >= width - 2) break; for (let y = Math.max(2, cy1 - yPad); y <= Math.min(height - 3, cy2 + yPad); y++) if (lumAt(x, y) > ornLumThresh) count++; }
+        if (count >= minPixSupport) { lastActive = d; emptyStreak = 0; }
+        else { emptyStreak++; if ((lastActive === 0 && d >= 3) || (lastActive > 0 && emptyStreak >= 2)) break; }
+      }
+      return lastActive > 0 ? Math.min(maxDist, lastActive + outlinePad) : 0;
+    }
+
+    let padTop = scanBand('top', maxTop), padBot = scanBand('bot', maxBot);
+    let padLeft = scanBand('left', maxSide), padRight = scanBand('right', maxSide);
+    if (padLeft > 0 && padRight > 0 && Math.abs(padLeft - padRight) <= Math.max(4, Math.round(width * 0.005))) {
+      const sym = Math.max(padLeft, padRight); padLeft = sym; padRight = sym;
+    }
+
+    const core = { x: cx1, y: cy1, w: cx2 - cx1 + 1, h: cy2 - cy1 + 1 };
+    const fx1 = Math.max(0, cx1 - padLeft), fy1 = Math.max(0, cy1 - padTop);
+    const fx2 = Math.min(width, cx2 + 1 + padRight), fy2 = Math.min(height, cy2 + 1 + padBot);
+    return {
+      outer: { x: fx1, y: fy1, w: fx2 - fx1, h: fy2 - fy1 }, core,
+      pads: { top: padTop, bot: padBot, left: padLeft, right: padRight },
+      hasOrnaments: (padTop + padBot + padLeft + padRight) > 0,
+      confidence: Math.min(1, bestRect.minCornerEnd), ms: Math.round(performance.now() - t0),
+    };
+  }
+
+  // ---- Rotation-Invariant Motion-Compensated Eye-Blink Detector ----
+  function detectBlinkLoop(frames, W, H, opts = {}) {
+    const t0 = performance.now(), N = frames.length;
+    if (N < 10) return { blinks: [], bestPair: null, pairs: [], eyeBox: null, curve: [], times: [], ms: 0 };
+    const dtAvg = (frames[N - 1].time - frames[0].time) / Math.max(1, N - 1);
+    const d1 = Math.max(1, Math.round(0.16 / dtAvg)), d2 = Math.max(d1 + 1, Math.round(0.30 / dtAvg)), maxD = d2;
+
+    let eyeBoxPx;
+    if (opts.roi) {
+      const rx = Math.max(4, Math.min(W - 10, Math.floor(opts.roi.x * W))), ry = Math.max(4, Math.min(H - 10, Math.floor(opts.roi.y * H)));
+      eyeBoxPx = { x0: rx, y0: ry, x1: rx + Math.max(8, Math.min(W - 4 - rx, Math.ceil(opts.roi.w * W))), y1: ry + Math.max(8, Math.min(H - 4 - ry, Math.ceil(opts.roi.h * H))) };
+    } else {
+      const patchW = Math.max(12, Math.round(W * 0.15)), patchH = Math.max(10, Math.round(H * 0.18));
+      const stepX = Math.max(4, Math.round(patchW * 0.5)), stepY = Math.max(4, Math.round(patchH * 0.5));
+      const patches = [], mx = Math.floor(W * 0.04), my = Math.floor(H * 0.04);
+      for (let y0 = my; y0 + patchH <= H - my; y0 += stepY)
+        for (let x0 = mx; x0 + patchW <= W - mx; x0 += stepX)
+          patches.push({ x0, y0, x1: x0 + patchW, y1: y0 + patchH });
+
+      const P = patches.length, patchSeries = Array.from({ length: P }, () => new Float32Array(N));
+      const darkMap = new Float32Array(W * H), totalMap = new Float32Array(W * H);
+      const integDark = new Float64Array((W + 1) * (H + 1)), integTot = new Float64Array((W + 1) * (H + 1));
+
+      for (let t = maxD; t < N - maxD; t++) {
+        const cur = frames[t].rgb, prev1 = frames[t - d1].rgb, next1 = frames[t + d1].rgb, prev2 = frames[t - d2].rgb, next2 = frames[t + d2].rgb;
+        for (let p = 0; p < W * H; p++) {
+          const i = p * 3, cr = cur[i], cg = cur[i + 1], cb = cur[i + 2], cLum = cr + cg + cb;
+          const p1r = prev1[i], p1g = prev1[i + 1], p1b = prev1[i + 2], n1r = next1[i], n1g = next1[i + 1], n1b = next1[i + 2];
+          const raw1 = Math.min(Math.abs(cr - p1r) + Math.abs(cg - p1g) + Math.abs(cb - p1b), Math.abs(cr - n1r) + Math.abs(cg - n1g) + Math.abs(cb - n1b)) - 0.9 * (Math.abs(p1r - n1r) + Math.abs(p1g - n1g) + Math.abs(p1b - n1b));
+          const oLum1 = (p1r + p1g + p1b + n1r + n1g + n1b) * 0.5;
+          const p2r = prev2[i], p2g = prev2[i + 1], p2b = prev2[i + 2], n2r = next2[i], n2g = next2[i + 1], n2b = next2[i + 2];
+          const raw2 = Math.min(Math.abs(cr - p2r) + Math.abs(cg - p2g) + Math.abs(cb - p2b), Math.abs(cr - n2r) + Math.abs(cg - n2g) + Math.abs(cb - n2b)) - 0.9 * (Math.abs(p2r - n2r) + Math.abs(p2g - n2g) + Math.abs(p2b - n2b));
+          const oLum2 = (p2r + p2g + p2b + n2r + n2g + n2b) * 0.5;
+
+          let v = 0, lumDrop = 0;
+          if (raw1 >= raw2 && raw1 > 22) { v = raw1; lumDrop = oLum1 - cLum; }
+          else if (raw2 > 22) { v = raw2; lumDrop = oLum2 - cLum; }
+          if (v > 0) { darkMap[p] = lumDrop > 16 ? v : 0; totalMap[p] = lumDrop >= -10 ? v : v * 0.4; }
+          else { darkMap[p] = 0; totalMap[p] = 0; }
+        }
+        integDark.fill(0, 0, W + 1); integTot.fill(0, 0, W + 1);
+        for (let y = 0; y < H; y++) {
+          let rsD = 0, rsT = 0;
+          const rOff = y * W, iCur = (y + 1) * (W + 1), iPrev = y * (W + 1);
+          integDark[iCur] = 0; integTot[iCur] = 0;
+          for (let x = 0; x < W; x++) {
+            rsD += darkMap[rOff + x]; rsT += totalMap[rOff + x];
+            integDark[iCur + x + 1] = integDark[iPrev + x + 1] + rsD;
+            integTot[iCur + x + 1] = integTot[iPrev + x + 1] + rsT;
+          }
+        }
+        for (let k = 0; k < P; k++) {
+          const pt = patches[k], area = (pt.x1 - pt.x0) * (pt.y1 - pt.y0);
+          const sumD = integDark[pt.y1 * (W + 1) + pt.x1] - integDark[pt.y0 * (W + 1) + pt.x1] - integDark[pt.y1 * (W + 1) + pt.x0] + integDark[pt.y0 * (W + 1) + pt.x0];
+          const sumT = integTot[pt.y1 * (W + 1) + pt.x1] - integTot[pt.y0 * (W + 1) + pt.x1] - integTot[pt.y1 * (W + 1) + pt.x0] + integTot[pt.y0 * (W + 1) + pt.x0];
+          const dAvg = sumD / Math.max(1, area), tAvg = sumT / Math.max(1, area);
+          patchSeries[k][t] = dAvg > 0.3 ? Math.sqrt(dAvg * tAvg) : 0;
+        }
+      }
+
+      const patchScores = new Float32Array(P);
+      let bestIdx = -1, bestScore = 0;
+      for (let k = 0; k < P; k++) {
+        const s = patchSeries[k], vals = [];
+        for (let t = maxD; t < N - maxD; t++) vals.push(s[t]);
+        vals.sort((a, b) => a - b);
+        const p75 = vals[Math.floor(vals.length * 0.75)] || 0, p98 = vals[Math.floor(vals.length * 0.98)] || 0, maxV = vals[vals.length - 1] || 0;
+        if (maxV < 1.0) continue;
+        const score = ((p98 + maxV) * 0.5) * (maxV / (p75 + 0.4));
+        patchScores[k] = score;
+        if (score > bestScore) { bestScore = score; bestIdx = k; }
+      }
+      if (bestIdx === -1) return { blinks: [], bestPair: null, pairs: [], eyeBox: null, curve: [], times: frames.map((f) => f.time), ms: Math.round(performance.now() - t0) };
+
+      const win = patches[bestIdx];
+      let ux0 = win.x0, uy0 = win.y0, ux1 = win.x1, uy1 = win.y1;
+      for (let k = 0; k < P; k++) {
+        if (k === bestIdx || patchScores[k] < bestScore * 0.45) continue;
+        const pt = patches[k];
+        if (Math.hypot((pt.x0 - win.x0) / patchW, (pt.y0 - win.y0) / patchH) <= 1.6) {
+          ux0 = Math.min(ux0, pt.x0); uy0 = Math.min(uy0, pt.y0); ux1 = Math.max(ux1, pt.x1); uy1 = Math.max(uy1, pt.y1);
+        }
+      }
+      eyeBoxPx = { x0: Math.max(4, ux0 - 2), y0: Math.max(4, uy0 - 2), x1: Math.min(W - 4, ux1 + 2), y1: Math.min(H - 4, uy1 + 2) };
+    }
+
+    const { x0, y0, x1, y1 } = eyeBoxPx, searchR = 3;
+    const ax0 = Math.max(searchR, x0 - 4), ay0 = Math.max(searchR, y0 - 4);
+    const ax1 = Math.min(W - 1 - searchR, x1 + 4), ay1 = Math.min(H - 1 - searchR, y1 + 4);
+
+    function findBestShift(srcRgb, refRgb) {
+      let bestDx = 0, bestDy = 0, bestErr = 1e18;
+      for (let dy = -searchR; dy <= searchR; dy++) {
+        for (let dx = -searchR; dx <= searchR; dx++) {
+          let err = 0;
+          for (let y = ay0; y < ay1; y += 2) {
+            const rRow = y * W, sRow = (y + dy) * W;
+            for (let x = ax0; x < ax1; x += 2) {
+              const ri = (rRow + x) * 3, si = (sRow + x + dx) * 3;
+              err += Math.abs(srcRgb[si] - refRgb[ri]) + Math.abs(srcRgb[si + 1] - refRgb[ri + 1]) + Math.abs(srcRgb[si + 2] - refRgb[ri + 2]);
+            }
+          }
+          if (err < bestErr) { bestErr = err; bestDx = dx; bestDy = dy; }
+        }
+      }
+      return { dx: bestDx, dy: bestDy };
+    }
+
+    const blinkCurve = new Float32Array(N), area = Math.max(1, (x1 - x0) * (y1 - y0));
+    for (let t = d1; t < N - d1; t++) {
+      const cur = frames[t].rgb;
+      let bestScore = 0;
+      for (const d of [d1, d2]) {
+        if (t - d < 0 || t + d >= N) continue;
+        const prev = frames[t - d].rgb, next = frames[t + d].rgb;
+        const sp = findBestShift(prev, cur), sn = findBestShift(next, cur);
+        let sumDark = 0, sumTot = 0;
+        for (let y = y0; y < y1; y++) {
+          for (let x = x0; x < x1; x++) {
+            const ci = (y * W + x) * 3, pi = ((y + sp.dy) * W + (x + sp.dx)) * 3, ni = ((y + sn.dy) * W + (x + sn.dx)) * 3;
+            const cr = cur[ci], cg = cur[ci + 1], cb = cur[ci + 2];
+            const pr = prev[pi], pg = prev[pi + 1], pb = prev[pi + 2];
+            const nr = next[ni], ng = next[ni + 1], nb = next[ni + 2];
+            const v = Math.min(Math.abs(cr - pr) + Math.abs(cg - pg) + Math.abs(cb - pb), Math.abs(cr - nr) + Math.abs(cg - ng) + Math.abs(cb - nb)) - 1.15 * (Math.abs(pr - nr) + Math.abs(pg - ng) + Math.abs(pb - nb));
+            if (v > 20) {
+              if ((pr + pg + pb + nr + ng + nb) * 0.5 - (cr + cg + cb) > 14) sumDark += v;
+              sumTot += v;
+            }
+          }
+        }
+        const darkRatio = sumTot > 0 ? sumDark / sumTot : 0;
+        const s = (darkRatio > 0.16 && sumDark > 120) ? (Math.sqrt(sumDark * sumTot) / Math.sqrt(area)) : 0;
+        if (s > bestScore) bestScore = s;
+      }
+      blinkCurve[t] = bestScore;
+    }
+
+    const activeVals = [];
+    for (let t = d1; t < N - d1; t++) activeVals.push(blinkCurve[t]);
+    activeVals.sort((a, b) => a - b);
+    const med = activeVals[Math.floor(activeVals.length * 0.50)] || 0;
+    const p75 = activeVals[Math.floor(activeVals.length * 0.75)] || 0;
+    const maxV = activeVals[activeVals.length - 1] || 0;
+    const eyeBoxNorm = { x: eyeBoxPx.x0 / W, y: eyeBoxPx.y0 / H, w: (eyeBoxPx.x1 - eyeBoxPx.x0) / W, h: (eyeBoxPx.y1 - eyeBoxPx.y0) / H };
+    const times = frames.map((f) => f.time);
+    if (maxV < 120) return { blinks: [], bestPair: null, pairs: [], eyeBox: eyeBoxNorm, curve: Array.from(blinkCurve), times, ms: Math.round(performance.now() - t0) };
+
+    const minPeakSepFrames = Math.max(4, Math.round(0.55 / dtAvg));
+    const peakThresh = Math.max(med + (p75 - med) * 2.5 + 40, med + (maxV - med) * 0.42);
+    const rawPeaks = [];
+    for (let t = d1 + 1; t < N - d1 - 1; t++) {
+      const v = blinkCurve[t];
+      if (v >= peakThresh && v >= blinkCurve[t - 1] && v >= blinkCurve[t + 1]) {
+        const yL = blinkCurve[t - 1], yC = v, yR = blinkCurve[t + 1], denom = 2 * (yL - 2 * yC + yR);
+        const subOffset = Math.abs(denom) > 1e-6 ? Math.max(-0.5, Math.min(0.5, (yL - yR) / denom)) : 0;
+        rawPeaks.push({ idx: t, time: Math.max(0, frames[t].time + subOffset * dtAvg), val: v });
+      }
+    }
+    rawPeaks.sort((a, b) => b.val - a.val);
+    const blinks = [];
+    for (const pk of rawPeaks) if (blinks.every((kept) => Math.abs(kept.idx - pk.idx) >= minPeakSepFrames)) blinks.push(pk);
+    blinks.sort((a, b) => a.idx - b.idx);
+
+    const frameSimilarity = (idxA, idxB) => {
+      const a = frames[idxA].rgb, b = frames[idxB].rgb;
+      let diff = 0, cnt = 0;
+      for (let i = 0; i < a.length; i += 12) { diff += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]); cnt++; }
+      return diff / Math.max(1, cnt * 3);
+    };
+
+    const pairs = [];
+    for (let i = 0; i < blinks.length; i++) {
+      for (let j = i + 1; j < blinks.length; j++) {
+        const dur = blinks[j].time - blinks[i].time;
+        if (dur < 0.7) continue;
+        const durBonus = (dur >= 1.8 && dur <= 6.5) ? 1.25 : (dur > 9.0 ? 0.7 : 1.0);
+        const seamDiff = frameSimilarity(blinks[i].idx, blinks[j].idx);
+        const score = (blinks[i].val + blinks[j].val) * durBonus * (j === i + 1 ? 1.15 : 1.0) - seamDiff * 0.25;
+        pairs.push({ i, j, startIdx: blinks[i].idx, endIdx: blinks[j].idx, startTime: blinks[i].time, endTime: blinks[j].time, duration: dur, seamDiff, score });
+      }
+    }
+    pairs.sort((a, b) => b.score - a.score);
+    return { blinks, bestPair: pairs[0] || null, pairs: pairs.slice(0, 6), eyeBox: eyeBoxNorm, curve: Array.from(blinkCurve), times, ms: Math.round(performance.now() - t0) };
+  }
+
+  // ---- Blink Loop Orchestration ----
+  async function runBlinkLoopDetect() {
+    if (!activeSource || activeSource.type === 'image' || state.isBusy) return null;
+    hideAlert(); setPlaying(false);
+    state.isBusy = true; state.cancelRequested = false;
+    el.blinkBadge.textContent = '解析中...';
+    el.progressSection.classList.remove('hidden');
+    syncUI();
+
+    try {
+      const scanFps = 12, maxScanSec = 15.0, totalDur = activeSource.duration;
+      const scanStart = totalDur > maxScanSec ? Math.max(0, Math.min(totalDur - maxScanSec, state.currentTime - 1.0)) : 0;
+      const scanEnd = Math.min(totalDur, scanStart + maxScanSec);
+      const sampleCount = Math.max(12, Math.floor((scanEnd - scanStart) * scanFps));
+
+      const W = 160, H = Math.max(48, Math.min(160, Math.round((state.cropH / Math.max(1, state.cropW)) * W)));
+      const scanCanvas = document.createElement('canvas'); scanCanvas.width = W; scanCanvas.height = H;
+      const scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
+
+      let demoCanvas = null, demoCtx = null;
+      if (activeSource.type === 'demo') {
+        demoCanvas = document.createElement('canvas'); demoCanvas.width = activeSource.width; demoCanvas.height = activeSource.height;
+        demoCtx = demoCanvas.getContext('2d');
+      }
+
+      const frames = [];
+      for (let i = 0; i < sampleCount; i++) {
+        if (state.cancelRequested) throw new Error('CANCELLED');
+        const t = Math.min(totalDur - 0.002, scanStart + i / scanFps);
+        if (activeSource.type === 'demo') {
+          DEMO_SOURCE.drawAt(demoCtx, t);
+          scanCtx.drawImage(demoCanvas, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, W, H);
+        } else {
+          await seekVideoExact(el.hiddenVideo, t);
+          scanCtx.drawImage(el.hiddenVideo, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, W, H);
+        }
+        const rgba = scanCtx.getImageData(0, 0, W, H).data;
+        const rgb = new Uint8Array(W * H * 3);
+        for (let p = 0, q = 0; p < rgba.length; p += 4) { rgb[q++] = rgba[p]; rgb[q++] = rgba[p + 1]; rgb[q++] = rgba[p + 2]; }
+        frames.push({ time: t, rgb });
+        setProgress(`瞬き解析用フレームをサンプリング中 (${i + 1} / ${sampleCount})`, ((i + 1) / sampleCount) * 80);
+        if (i % 3 === 2) await yieldFrame();
+      }
+      if (state.cancelRequested) throw new Error('CANCELLED');
+      setProgress('目の位置と閉眼ピークを解析中...', 90);
+      await yieldFrame();
+
+      const res = detectBlinkLoop(frames, W, H, { roi: state.manualEyeRoi });
+      lastBlinkResult = res;
+
+      if (res.bestPair) {
+        state.startTime = Number(res.bestPair.startTime.toFixed(2));
+        state.duration = Number(Math.max(0.2, res.bestPair.duration).toFixed(2));
+        seekPreviewTo(state.startTime);
+      } else if (res.blinks.length === 1) {
+        state.startTime = Number(res.blinks[0].time.toFixed(2));
+        state.duration = Number(Math.min(3.0, Math.max(0.2, activeSource.duration - state.startTime)).toFixed(2));
+        seekPreviewTo(state.startTime);
+        showAlert(`瞬きが1回のみ検出されました (${res.blinks[0].time.toFixed(2)}s)。2回以上の瞬きが含まれる長さの動画だと起点・終点を両方自動設定できます。`);
+      } else {
+        showAlert('瞬きを自動検出できませんでした。右パネルの「目の位置を指定」で目の周りを囲って再検出してみてください。');
+      }
+      renderBlinkUI();
+      return res;
+    } catch (err) {
+      if (err && err.message !== 'CANCELLED') showAlert(`瞬き検出中にエラーが発生しました: ${err.message}`);
+      return null;
+    } finally {
+      state.isBusy = false;
+      el.progressSection.classList.add('hidden');
+      syncUI();
+    }
+  }
+
+  function renderBlinkUI() {
+    el.eyeRoiResetRow.classList.toggle('hidden', !state.manualEyeRoi);
+    el.blinkEyeModeLabel.textContent = state.manualEyeRoi ? '目位置: 手動指定' : '目位置: 自動特定';
+    el.timelineBlinkMarkers.innerHTML = '';
+    if (!lastBlinkResult || !activeSource || activeSource.type === 'image') {
+      el.blinkBadge.textContent = '待機中';
+      el.blinkCurveWrap.classList.add('hidden');
+      return;
+    }
+    const dur = Math.max(0.01, activeSource.duration);
+    const { blinks, pairs } = lastBlinkResult;
+    el.blinkBadge.textContent = blinks.length ? `${blinks.length}回検出` : '未検出';
+
+    for (let idx = 0; idx < blinks.length; idx++) {
+      const b = blinks[idx];
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.className = 'blink-dot';
+      dot.style.left = `${Math.max(0, Math.min(100, (b.time / dur) * 100))}%`;
+      dot.title = `瞬き #${idx + 1}: ${b.time.toFixed(2)}s（クリックで移動）`;
+      dot.addEventListener('click', (e) => { e.stopPropagation(); setPlaying(false); seekPreviewTo(b.time); });
+      el.timelineBlinkMarkers.appendChild(dot);
+    }
+
+    el.blinkCurveWrap.classList.remove('hidden');
+    drawBlinkCurve();
+
+    el.blinkPairList.innerHTML = '';
+    for (const pair of pairs) {
+      const active = Math.abs(state.startTime - pair.startTime) < 0.08 && Math.abs(state.duration - pair.duration) < 0.08;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pair-btn mono' + (active ? ' active' : '');
+      btn.textContent = `#${pair.i + 1}→#${pair.j + 1} (${pair.startTime.toFixed(2)}s–${pair.endTime.toFixed(2)}s · ${pair.duration.toFixed(2)}s)`;
+      btn.addEventListener('click', () => {
+        state.startTime = Number(pair.startTime.toFixed(2));
+        state.duration = Number(pair.duration.toFixed(2));
+        seekPreviewTo(state.startTime);
+        syncUI();
+        renderBlinkUI();
+      });
+      el.blinkPairList.appendChild(btn);
+    }
+  }
+
+  function getCssVar(name, fallback) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+  }
+
+  function drawBlinkCurve() {
+    if (!lastBlinkResult || !lastBlinkResult.curve.length) return;
+    const canvas = el.blinkCurveCanvas, rect = canvas.getBoundingClientRect();
+    if (rect.width < 10) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(rect.width * dpr); canvas.height = Math.round(rect.height * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.save(); ctx.scale(dpr, dpr);
+    const W = rect.width, H = rect.height, { curve, times, blinks } = lastBlinkResult;
+    const tMin = times[0] || 0, tMax = Math.max(tMin + 0.1, times[times.length - 1] || 1);
+    const maxV = Math.max(1, ...curve);
+
+    ctx.fillStyle = getCssVar('--bg', '#111');
+    ctx.fillRect(0, 0, W, H);
+    const primary = getCssVar('--primary', '#3b82f6'), warn = getCssVar('--warning', '#f59e0b');
+    const sx = ((state.startTime - tMin) / (tMax - tMin)) * W, ex = ((state.startTime + state.duration - tMin) / (tMax - tMin)) * W;
+    ctx.fillStyle = primary; ctx.globalAlpha = 0.2;
+    ctx.fillRect(Math.max(0, sx), 0, Math.max(2, Math.min(W, ex) - Math.max(0, sx)), H);
+    ctx.globalAlpha = 1;
+
+    ctx.strokeStyle = primary; ctx.lineWidth = 1.5; ctx.beginPath();
+    for (let i = 0; i < curve.length; i++) {
+      const x = ((times[i] - tMin) / (tMax - tMin)) * W, y = H - 4 - (curve[i] / maxV) * (H - 12);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    for (const b of blinks) {
+      const x = ((b.time - tMin) / (tMax - tMin)) * W, y = H - 4 - (b.val / maxV) * (H - 12);
+      ctx.fillStyle = warn; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  el.blinkCurveCanvas.addEventListener('click', (e) => {
+    if (!lastBlinkResult || !lastBlinkResult.times.length) return;
+    const rect = el.blinkCurveCanvas.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const tMin = lastBlinkResult.times[0], tMax = lastBlinkResult.times[lastBlinkResult.times.length - 1];
+    setPlaying(false); seekPreviewTo(tMin + pct * (tMax - tMin));
+  });
+
+  // ---- Card Auto-Detect Helpers ----
+  function applyDetectionToCrop(det) {
+    if (!det || !activeSource) return;
+    const base = state.includeOrnaments ? det.outer : det.core, m = state.detectMargin;
+    state.aspect = 'free';
+    state.cropX = Math.max(0, base.x - m);
+    state.cropY = Math.max(0, base.y - m);
+    state.cropW = Math.max(16, Math.min(activeSource.width - state.cropX, base.w + m * 2));
+    state.cropH = Math.max(16, Math.min(activeSource.height - state.cropY, base.h + m * 2));
+    clampCropToSource(false);
+    updateDetectionUI(det);
+    syncUI();
+  }
+
+  function updateDetectionUI(det) {
+    if (!det) { el.detectBadge.textContent = '未検出'; el.detectDetailBox.classList.add('hidden'); return; }
+    el.detectBadge.textContent = `検出済 (${det.ms}ms)`;
+    el.detectDetailBox.classList.remove('hidden');
+    el.detectDetailBox.innerHTML = `<div>基本枠: ${det.core.w}×${det.core.h} (X:${det.core.x}, Y:${det.core.y})</div><div>${det.hasOrnaments ? `装飾はみ出し: 上+${det.pads.top} 下+${det.pads.bot} 左+${det.pads.left} 右+${det.pads.right}px` : '装飾はみ出し: なし（シンプル矩形枠）'}</div>`;
+  }
+
+  function captureCurrentSourceRgba() {
+    if (!activeSource) return null;
+    const c = document.createElement('canvas'); c.width = activeSource.width; c.height = activeSource.height;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    if (activeSource.type === 'demo') DEMO_SOURCE.drawAt(ctx, state.currentTime);
+    else if (activeSource.type === 'image') ctx.drawImage(activeSource.imgEl, 0, 0, activeSource.width, activeSource.height);
+    else if (el.hiddenVideo.readyState >= 2) ctx.drawImage(el.hiddenVideo, 0, 0, activeSource.width, activeSource.height);
+    else return null;
+    return ctx.getImageData(0, 0, c.width, c.height);
+  }
+
+  async function runAutoDetect(preferMidFrame = false) {
+    if (!activeSource) return null;
+    hideAlert(); el.detectBadge.textContent = '解析中...';
+    if (preferMidFrame && activeSource.type === 'video' && activeSource.duration > 0.6) {
+      await seekVideoExact(el.hiddenVideo, Math.min(0.4, activeSource.duration * 0.25));
+      state.currentTime = el.hiddenVideo.currentTime;
+    }
+    const imgData = captureCurrentSourceRgba();
+    if (!imgData) { el.detectBadge.textContent = '未準備'; return null; }
+    let det = detectProfileCardFrame(imgData.data, imgData.width, imgData.height);
+    if ((!det || det.confidence < 0.55) && preferMidFrame && activeSource.type === 'video' && activeSource.duration > 1.0) {
+      await seekVideoExact(el.hiddenVideo, activeSource.duration * 0.5);
+      state.currentTime = el.hiddenVideo.currentTime;
+      const midData = captureCurrentSourceRgba();
+      if (midData) { const det2 = detectProfileCardFrame(midData.data, midData.width, midData.height); if (det2 && (!det || det2.confidence > det.confidence)) det = det2; }
+    }
+    if (!det) { lastDetection = null; updateDetectionUI(null); showAlert('プロフィールカードの枠を自動判定できませんでした。手動でドラッグ調整してください。'); return null; }
+    lastDetection = det; applyDetectionToCrop(det); return det;
+  }
+
+  // ---- Geometry & UI Sync ----
+  const getSourceDims = () => activeSource ? { w: activeSource.width, h: activeSource.height } : { w: 1708, h: 1080 };
+  const getAspectRatioValue = (a) => a === '16:9' ? 16 / 9 : (a === '4:3' ? 4 / 3 : (a === '1:1' ? 1 : null));
+  function clampCropToSource(notify = false) {
+    const { w: sw, h: sh } = getSourceDims();
+    const prev = `${state.cropX},${state.cropY},${state.cropW},${state.cropH}`;
+    state.cropW = Math.max(16, Math.min(sw, Math.round(state.cropW)));
+    state.cropH = Math.max(16, Math.min(sh, Math.round(state.cropH)));
+    state.cropX = Math.max(0, Math.min(sw - state.cropW, Math.round(state.cropX)));
+    state.cropY = Math.max(0, Math.min(sh - state.cropH, Math.round(state.cropY)));
+    if (notify && activeSource && prev !== `${state.cropX},${state.cropY},${state.cropW},${state.cropH}`) showAlert(`動画解像度 (${sw}×${sh}) に収まるよう座標を自動調整しました`);
+  }
+  function getOutputDimensions() {
+    let targetW = state.cropW;
+    if (state.scaleMode === '800') targetW = Math.min(state.cropW, 800);
+    else if (state.scaleMode === '640') targetW = Math.min(state.cropW, 640);
+    else if (state.scaleMode === '480') targetW = Math.min(state.cropW, 480);
+    else if (state.scaleMode === 'custom') targetW = Math.max(32, Math.min(1920, Math.round(state.customWidth || state.cropW)));
+    const scale = targetW / Math.max(1, state.cropW);
+    return { outW: Math.max(16, Math.round(targetW)), outH: Math.max(16, Math.round(state.cropH * scale)) };
+  }
+  function gcd(a, b) { a = Math.abs(Math.round(a)); b = Math.abs(Math.round(b)); while (b) { const t = b; b = a % b; a = t; } return a || 1; }
+  function formatAspect(w, h) { const g = gcd(w, h), rw = Math.round(w / g), rh = Math.round(h / g); return (rw <= 21 && rh <= 21) ? `${rw}:${rh}` : `${(w / h).toFixed(2)}:1`; }
+  function formatBytes(b) { return b < 1024 ? `${b} B` : (b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(2)} MB`); }
+
+  function buildFfmpegCommand(inputName = 'input.mp4', outputName = 'output.gif') {
+    const { outW } = getOutputDimensions();
+    const filters = [`fps=${state.fps}`, `crop=${state.cropW}:${state.cropH}:${state.cropX}:${state.cropY}`];
+    if (state.scaleMode !== 'orig' && outW !== state.cropW) filters.push(`scale=${outW}:-1:flags=lanczos`);
+    let palGen = 'palettegen=stats_mode=diff', palUse = 'paletteuse=dither=bayer:bayer_scale=3';
+    if (state.quality === 'pixel') palUse = 'paletteuse=dither=none';
+    else if (state.quality === 'light') palGen = 'palettegen=max_colors=128:stats_mode=diff';
+    return `ffmpeg -y -ss ${state.startTime.toFixed(2)} -t ${state.duration.toFixed(2)} -i "${inputName}" -filter_complex "${filters.join(',')},split[s0][s1];[s0]${palGen}[p];[s1][p]${palUse}" -loop ${state.loop ? '0' : '-1'} "${outputName}"`;
+  }
+
+  function syncUI() {
+    el.autoDetectToggle.checked = state.autoDetect;
+    el.autoBlinkToggle.checked = state.autoBlink;
+    el.autoConvertToggle.checked = state.autoConvert;
+    el.chkIncludeOrnaments.checked = state.includeOrnaments;
+    el.rangeDetectMargin.value = state.detectMargin;
+    el.marginReadout.textContent = `${state.detectMargin > 0 ? '+' : ''}${state.detectMargin} px`;
+
+    el.inputCropX.value = state.cropX; el.inputCropY.value = state.cropY;
+    el.inputCropW.value = state.cropW; el.inputCropH.value = state.cropH;
+    el.cropAspectReadout.textContent = formatAspect(state.cropW, state.cropH);
+    el.stageHudText.textContent = `X: ${state.cropX}  Y: ${state.cropY}  ·  ${state.cropW} × ${state.cropH} px`;
+
+    const steps = [];
+    if (state.autoDetect) steps.push('カード枠自動検出');
+    if (state.autoBlink) steps.push('瞬きループ自動設定');
+    if (state.autoConvert) steps.push('自動GIF生成');
+    el.emptyPresetSummary.textContent = steps.length ? `ドロップ時: ${steps.join(' → ')}` : `固定座標: X:${state.cropX} Y:${state.cropY} / ${state.cropW}×${state.cropH}`;
+    el.dropOverlayHint.textContent = el.emptyPresetSummary.textContent;
+
+    document.querySelectorAll('#aspectGroup .seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.aspect === state.aspect));
+    document.querySelectorAll('#fpsGroup .fps-btn').forEach((b) => b.classList.toggle('active', Number(b.dataset.fps) === state.fps));
+
+    el.selectScaleMode.value = state.scaleMode;
+    el.inputCustomWidth.value = state.customWidth;
+    el.inputCustomWidth.classList.toggle('hidden', state.scaleMode !== 'custom');
+    el.selectQuality.value = state.quality;
+    el.chkGifLoop.checked = state.loop;
+    el.chkLoopRange.checked = state.loopRange;
+
+    const { outW, outH } = getOutputDimensions();
+    el.outResReadout.textContent = `${outW} × ${outH} px`;
+    const isImg = activeSource && activeSource.type === 'image';
+    const estFrames = isImg ? 1 : Math.max(1, Math.round(state.duration * state.fps));
+    el.frameEstimateText.textContent = isImg ? '静止画 (1フレーム)' : `約 ${estFrames} フレーム`;
+    el.frameWarnBox.classList.toggle('hidden', estFrames <= 240);
+
+    el.inputStart.value = state.startTime.toFixed(2);
+    el.inputDuration.value = state.duration.toFixed(2);
+
+    const disableVid = !activeSource || isImg || state.isBusy;
+    el.btnBlinkDetectSide.disabled = disableVid;
+    el.btnPickEyeRoi.disabled = disableVid;
+    el.btnAutoDetectSide.disabled = !activeSource || state.isBusy;
+    el.btnGenerate.disabled = !activeSource || state.isBusy;
+    el.btnGenerate.textContent = state.isBusy ? '処理中...' : (activeSource ? (isImg ? `切り抜きGIFを作成（${outW}×${outH}）` : `GIFを作成する（${outW}×${outH} · 約${estFrames}f）`) : '動画を読み込むとGIFを作成できます');
+
+    el.eyeRoiModeBanner.classList.toggle('hidden', !state.eyeRoiMode);
+    el.timelineSection.classList.toggle('hidden', !!isImg);
+    el.btnToggleDemoFrame.classList.toggle('hidden', !(activeSource && activeSource.type === 'demo'));
+    el.btnToggleDemoFrame.textContent = `枠切替: ${state.demoOrnamental ? '装飾あり' : 'シンプル枠'}`;
+
+    if (activeSource && !isImg) {
+      const dur = Math.max(0.01, activeSource.duration);
+      const startPct = Math.max(0, Math.min(100, (state.startTime / dur) * 100));
+      el.timelineTrimBar.style.left = `${startPct}%`;
+      el.timelineTrimBar.style.width = `${Math.max(0.5, Math.min(100 - startPct, (state.duration / dur) * 100))}%`;
+      el.timelinePlayhead.style.left = `${Math.max(0, Math.min(100, (state.currentTime / dur) * 100))}%`;
+      el.timeDisplay.textContent = `${state.currentTime.toFixed(2)}s / ${dur.toFixed(2)}s`;
+    }
+
+    const sampleIn = activeSource ? activeSource.name : 'input.mp4';
+    el.ffmpegPreview.textContent = buildFfmpegCommand(sampleIn, `${sampleIn.replace(/\.[^.]+$/, '')}_${outW}x${outH}.gif`);
+    persistState();
+    drawStage();
+    if (lastBlinkResult) drawBlinkCurve();
+  }
+
+  // ---- Interactive Stage ----
+  let stageLayout = { ox: 0, oy: 0, scale: 1, drawW: 1, drawH: 1 };
+  let dragOp = null, eyeRoiDrag = null;
+
+  function drawStage() {
+    if (!activeSource) return;
+    const canvas = el.stageCanvas, rect = el.stageContainer.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const cw = Math.round(rect.width * dpr), ch = Math.round(rect.height * dpr);
+    if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
+    const ctx = canvas.getContext('2d');
+    ctx.save(); ctx.scale(dpr, dpr);
+
+    const vw = rect.width, vh = rect.height, pad = 16, sw = activeSource.width, sh = activeSource.height;
+    const scale = Math.min((vw - pad * 2) / sw, (vh - pad * 2) / sh);
+    const drawW = sw * scale, drawH = sh * scale, ox = (vw - drawW) / 2, oy = (vh - drawH) / 2;
+    stageLayout = { ox, oy, scale, drawW, drawH };
+
+    ctx.fillStyle = getCssVar('--bg', '#0f1117'); ctx.fillRect(0, 0, vw, vh);
+    ctx.save(); ctx.translate(ox, oy); ctx.scale(scale, scale);
+    if (activeSource.type === 'demo') DEMO_SOURCE.drawAt(ctx, state.currentTime);
+    else if (activeSource.type === 'image') ctx.drawImage(activeSource.imgEl, 0, 0, sw, sh);
+    else if (el.hiddenVideo.readyState >= 2) ctx.drawImage(el.hiddenVideo, 0, 0, sw, sh);
+    ctx.restore();
+
+    const rx = ox + state.cropX * scale, ry = oy + state.cropY * scale, rw = state.cropW * scale, rh = state.cropH * scale;
+    ctx.fillStyle = 'rgba(0,0,0,0.56)';
+    ctx.fillRect(ox, oy, drawW, Math.max(0, ry - oy));
+    ctx.fillRect(ox, ry + rh, drawW, Math.max(0, oy + drawH - (ry + rh)));
+    ctx.fillRect(ox, ry, Math.max(0, rx - ox), rh);
+    ctx.fillRect(rx + rw, ry, Math.max(0, ox + drawW - (rx + rw)), rh);
+
+    if (lastDetection && lastDetection.hasOrnaments && state.includeOrnaments) {
+      const c = lastDetection.core;
+      ctx.save(); ctx.setLineDash([4, 4]); ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 1;
+      ctx.strokeRect(ox + c.x * scale, oy + c.y * scale, c.w * scale, c.h * scale); ctx.restore();
+    }
+
+    const eyeNorm = state.manualEyeRoi || (lastBlinkResult && lastBlinkResult.eyeBox);
+    if (eyeNorm && !eyeRoiDrag) {
+      const ex = rx + eyeNorm.x * rw, ey = ry + eyeNorm.y * rh, ew = eyeNorm.w * rw, eh = eyeNorm.h * rh;
+      const warn = getCssVar('--warning', '#f59e0b');
+      ctx.save(); ctx.setLineDash([5, 3]); ctx.strokeStyle = warn; ctx.lineWidth = 1.75; ctx.strokeRect(ex, ey, ew, eh);
+      ctx.fillStyle = warn; ctx.font = 'bold 11px sans-serif'; ctx.fillText(state.manualEyeRoi ? '目(手動)' : '目(検出)', ex + 4, Math.max(ey + 13, ry + 13)); ctx.restore();
+    }
+
+    if (eyeRoiDrag) {
+      const x1 = ox + Math.min(eyeRoiDrag.x0, eyeRoiDrag.x1) * scale, y1 = oy + Math.min(eyeRoiDrag.y0, eyeRoiDrag.y1) * scale;
+      const w = Math.abs(eyeRoiDrag.x1 - eyeRoiDrag.x0) * scale, h = Math.abs(eyeRoiDrag.y1 - eyeRoiDrag.y0) * scale;
+      ctx.save(); ctx.fillStyle = 'rgba(245,158,11,0.2)'; ctx.fillRect(x1, y1, w, h);
+      ctx.strokeStyle = getCssVar('--warning', '#f59e0b'); ctx.lineWidth = 2; ctx.strokeRect(x1, y1, w, h); ctx.restore();
+    }
+
+    const accent = getCssVar('--primary', '#3b82f6');
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.strokeRect(rx, ry, rw, rh);
+    ctx.strokeStyle = accent; ctx.lineWidth = 1.5; ctx.strokeRect(rx + 1, ry + 1, Math.max(0, rw - 2), Math.max(0, rh - 2));
+
+    if (!state.eyeRoiMode) {
+      for (const h of getHandlePoints(rx, ry, rw, rh)) {
+        ctx.fillStyle = '#ffffff'; ctx.strokeStyle = accent; ctx.lineWidth = 2;
+        ctx.fillRect(h.x - 4.5, h.y - 4.5, 9, 9); ctx.strokeRect(h.x - 4.5, h.y - 4.5, 9, 9);
+      }
+    }
+    ctx.restore();
+  }
+
+  function getHandlePoints(rx, ry, rw, rh) {
+    return [
+      { id: 'nw', x: rx, y: ry, cursor: 'nwse-resize' }, { id: 'n', x: rx + rw / 2, y: ry, cursor: 'ns-resize' },
+      { id: 'ne', x: rx + rw, y: ry, cursor: 'nesw-resize' }, { id: 'e', x: rx + rw, y: ry + rh / 2, cursor: 'ew-resize' },
+      { id: 'se', x: rx + rw, y: ry + rh, cursor: 'nwse-resize' }, { id: 's', x: rx + rw / 2, y: ry + rh, cursor: 'ns-resize' },
+      { id: 'sw', x: rx, y: ry + rh, cursor: 'nesw-resize' }, { id: 'w', x: rx, y: ry + rh / 2, cursor: 'ew-resize' },
+    ];
+  }
+  function hitTestStage(mx, my) {
+    const { ox, oy, scale } = stageLayout, rx = ox + state.cropX * scale, ry = oy + state.cropY * scale, rw = state.cropW * scale, rh = state.cropH * scale;
+    for (const h of getHandlePoints(rx, ry, rw, rh)) if (Math.abs(mx - h.x) <= 9 && Math.abs(my - h.y) <= 9) return { mode: h.id, cursor: h.cursor };
+    if (mx >= rx && mx <= rx + rw && my >= ry && my <= ry + rh) return { mode: 'move', cursor: 'move' };
+    return { mode: 'new', cursor: 'crosshair' };
+  }
+
+  el.stageCanvas.addEventListener('pointerdown', (e) => {
+    if (!activeSource) return;
+    const rect = el.stageCanvas.getBoundingClientRect(), mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    el.stageCanvas.setPointerCapture(e.pointerId); el.stageContainer.focus();
+    if (state.eyeRoiMode) {
+      const vx = Math.max(state.cropX, Math.min(state.cropX + state.cropW, (mx - stageLayout.ox) / stageLayout.scale));
+      const vy = Math.max(state.cropY, Math.min(state.cropY + state.cropH, (my - stageLayout.oy) / stageLayout.scale));
+      eyeRoiDrag = { x0: vx, y0: vy, x1: vx, y1: vy }; drawStage(); return;
+    }
+    const hit = hitTestStage(mx, my);
+    if (hit.mode === 'new') {
+      const vx = Math.max(0, Math.min(activeSource.width - 16, Math.round((mx - stageLayout.ox) / stageLayout.scale)));
+      const vy = Math.max(0, Math.min(activeSource.height - 16, Math.round((my - stageLayout.oy) / stageLayout.scale)));
+      dragOp = { mode: 'se', startX: mx, startY: my, initCrop: { x: vx, y: vy, w: 16, h: 16 } };
+    } else dragOp = { mode: hit.mode, startX: mx, startY: my, initCrop: { x: state.cropX, y: state.cropY, w: state.cropW, h: state.cropH } };
+  });
+
+  el.stageCanvas.addEventListener('pointermove', (e) => {
+    if (!activeSource) return;
+    const rect = el.stageCanvas.getBoundingClientRect(), mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    if (state.eyeRoiMode) {
+      el.stageCanvas.style.cursor = 'crosshair';
+      if (eyeRoiDrag) {
+        eyeRoiDrag.x1 = Math.max(state.cropX, Math.min(state.cropX + state.cropW, (mx - stageLayout.ox) / stageLayout.scale));
+        eyeRoiDrag.y1 = Math.max(state.cropY, Math.min(state.cropY + state.cropH, (my - stageLayout.oy) / stageLayout.scale));
+        drawStage();
+      }
+      return;
+    }
+    if (!dragOp) { el.stageCanvas.style.cursor = hitTestStage(mx, my).cursor; return; }
+    const dx = Math.round((mx - dragOp.startX) / stageLayout.scale), dy = Math.round((my - dragOp.startY) / stageLayout.scale);
+    const init = dragOp.initCrop, sw = activeSource.width, sh = activeSource.height, ratio = getAspectRatioValue(state.aspect), MIN = 24;
+    if (dragOp.mode === 'move') {
+      state.cropX = Math.max(0, Math.min(sw - init.w, init.x + dx));
+      state.cropY = Math.max(0, Math.min(sh - init.h, init.y + dy));
+      state.cropW = init.w; state.cropH = init.h;
+    } else {
+      let left = init.x, top = init.y, right = init.x + init.w, bottom = init.y + init.h, m = dragOp.mode;
+      if (m.includes('w')) left = Math.max(0, Math.min(right - MIN, init.x + dx));
+      if (m.includes('e')) right = Math.min(sw, Math.max(left + MIN, init.x + init.w + dx));
+      if (m.includes('n')) top = Math.max(0, Math.min(bottom - MIN, init.y + dy));
+      if (m.includes('s')) bottom = Math.min(sh, Math.max(top + MIN, init.y + init.h + dy));
+      let nw = right - left, nh = bottom - top;
+      if (ratio) {
+        if (m === 'n' || m === 's') { nw = Math.round(nh * ratio); if (left + nw > sw) { nw = sw - left; nh = Math.round(nw / ratio); } }
+        else { nh = Math.round(nw / ratio); if (m.includes('n')) { top = bottom - nh; if (top < 0) { top = 0; nh = bottom; nw = Math.round(nh * ratio); } } else if (top + nh > sh) { nh = sh - top; nw = Math.round(nh * ratio); } }
+        if (m.includes('w')) left = Math.max(0, right - nw);
+      }
+      state.cropX = Math.max(0, Math.min(sw - MIN, Math.round(left)));
+      state.cropY = Math.max(0, Math.min(sh - MIN, Math.round(top)));
+      state.cropW = Math.max(MIN, Math.min(sw - state.cropX, Math.round(nw)));
+      state.cropH = Math.max(MIN, Math.min(sh - state.cropY, Math.round(nh)));
+    }
+    syncUI();
+  });
+
+  el.stageCanvas.addEventListener('pointerup', (e) => {
+    if (eyeRoiDrag) {
+      el.stageCanvas.releasePointerCapture(e.pointerId);
+      const xMin = Math.min(eyeRoiDrag.x0, eyeRoiDrag.x1), yMin = Math.min(eyeRoiDrag.y0, eyeRoiDrag.y1);
+      const w = Math.abs(eyeRoiDrag.x1 - eyeRoiDrag.x0), h = Math.abs(eyeRoiDrag.y1 - eyeRoiDrag.y0);
+      eyeRoiDrag = null; state.eyeRoiMode = false;
+      if (w >= 12 && h >= 10) {
+        state.manualEyeRoi = {
+          x: Math.max(0, (xMin - state.cropX) / Math.max(1, state.cropW)),
+          y: Math.max(0, (yMin - state.cropY) / Math.max(1, state.cropH)),
+          w: Math.min(1, w / Math.max(1, state.cropW)),
+          h: Math.min(1, h / Math.max(1, state.cropH)),
+        };
+        syncUI(); runBlinkLoopDetect();
+      } else syncUI();
+      return;
+    }
+    if (dragOp) { el.stageCanvas.releasePointerCapture(e.pointerId); dragOp = null; }
+  });
+
+  el.stageContainer.addEventListener('keydown', (e) => {
+    if (!activeSource) return;
+    const step = e.shiftKey ? 10 : 1; let moved = false;
+    if (e.key === 'ArrowLeft') { state.cropX -= step; moved = true; }
+    if (e.key === 'ArrowRight') { state.cropX += step; moved = true; }
+    if (e.key === 'ArrowUp') { state.cropY -= step; moved = true; }
+    if (e.key === 'ArrowDown') { state.cropY += step; moved = true; }
+    if (moved) { e.preventDefault(); clampCropToSource(false); syncUI(); }
+  });
+
+  window.addEventListener('resize', () => { drawStage(); if (lastBlinkResult) drawBlinkCurve(); });
+
+  // ---- Playback & Loading ----
+  let rafPlayId = null, playLastTs = 0;
+  function setPlaying(playing) {
+    if (!activeSource || activeSource.type === 'image') return;
+    state.isPlaying = playing;
+    el.iconPlay.classList.toggle('hidden', playing); el.iconPause.classList.toggle('hidden', !playing);
+    if (activeSource.type === 'video') {
+      if (playing) {
+        if (state.loopRange && (state.currentTime < state.startTime || state.currentTime >= state.startTime + state.duration)) {
+          el.hiddenVideo.currentTime = state.startTime; state.currentTime = state.startTime;
+        }
+        el.hiddenVideo.play().catch(() => {});
+      } else el.hiddenVideo.pause();
+    }
+    if (playing) {
+      playLastTs = performance.now();
+      const tick = (now) => {
+        if (!state.isPlaying || !activeSource) return;
+        const dt = (now - playLastTs) / 1000; playLastTs = now;
+        const rs = state.loopRange ? state.startTime : 0;
+        const re = state.loopRange ? Math.min(activeSource.duration, state.startTime + state.duration) : activeSource.duration;
+        if (activeSource.type === 'demo') { state.currentTime += dt; if (state.currentTime >= re) state.currentTime = rs; }
+        else { state.currentTime = el.hiddenVideo.currentTime; if (state.currentTime >= re || el.hiddenVideo.ended) { el.hiddenVideo.currentTime = rs; state.currentTime = rs; } }
+        updateTimelinePlayheadOnly(); drawStage(); rafPlayId = requestAnimationFrame(tick);
+      };
+      rafPlayId = requestAnimationFrame(tick);
+    } else if (rafPlayId) { cancelAnimationFrame(rafPlayId); rafPlayId = null; }
+  }
+  function updateTimelinePlayheadOnly() {
+    if (!activeSource || activeSource.type === 'image') return;
+    const dur = Math.max(0.01, activeSource.duration);
+    el.timelinePlayhead.style.left = `${Math.max(0, Math.min(100, (state.currentTime / dur) * 100))}%`;
+    el.timeDisplay.textContent = `${state.currentTime.toFixed(2)}s / ${dur.toFixed(2)}s`;
+  }
+  function seekPreviewTo(timeSec) {
+    if (!activeSource || activeSource.type === 'image') return;
+    state.currentTime = Math.max(0, Math.min(activeSource.duration, timeSec));
+    if (activeSource.type === 'video') el.hiddenVideo.currentTime = state.currentTime;
+    else drawStage();
+    updateTimelinePlayheadOnly();
+  }
+  el.hiddenVideo.addEventListener('seeked', () => { if (activeSource && activeSource.type === 'video' && !state.isBusy) drawStage(); });
+
+  async function onSourceReady(src, triggeredByDrop = false) {
+    hideAlert(); setPlaying(false);
+    activeSource = src; lastDetection = null; lastBlinkResult = null;
+    state.manualEyeRoi = null; state.eyeRoiMode = false;
+    updateDetectionUI(null); renderBlinkUI();
+    state.startTime = 0; state.duration = src.type === 'image' ? 1.0 : Math.min(3.5, Math.max(0.2, Number(src.duration.toFixed(2))));
+    state.currentTime = 0;
+
+    el.emptyDropZone.classList.add('hidden'); el.editorSection.classList.remove('hidden');
+    el.videoFileName.textContent = src.name;
+    el.videoMetaBadge.textContent = src.type === 'image' ? `${src.width}×${src.height} · 静止画` : `${src.width}×${src.height} · ${src.duration.toFixed(2)}s`;
+
+    if (state.autoDetect) { syncUI(); await runAutoDetect(true); }
+    else { clampCropToSource(true); syncUI(); }
+
+    if (state.autoBlink && src.type !== 'image' && src.duration >= 1.2) await runBlinkLoopDetect();
+    requestAnimationFrame(drawStage);
+    if (triggeredByDrop && state.autoConvert && src.type !== 'image') setTimeout(() => generateGif(), 80);
+  }
+
+  function loadMediaFile(file, triggeredByDrop = false) {
+    if (!file) return;
+    if (activeSource && activeSource.objectUrl) URL.revokeObjectURL(activeSource.objectUrl);
+    const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp|bmp)$/i.test(file.name);
+    const url = URL.createObjectURL(file);
+    if (isImage) {
+      const img = new Image();
+      img.onload = () => onSourceReady({ type: 'image', name: file.name, width: img.naturalWidth, height: img.naturalHeight, duration: 1.0, objectUrl: url, imgEl: img }, triggeredByDrop);
+      img.onerror = () => { URL.revokeObjectURL(url); showAlert('画像ファイルを読み込めませんでした。'); };
+      img.src = url; return;
+    }
+    const video = el.hiddenVideo; video.pause(); video.src = url; video.load();
+    const onLoaded = () => {
+      cleanup();
+      if (!video.videoWidth || !video.videoHeight) { showAlert('映像トラックを読み込めませんでした。MP4(H.264)またはWebM形式をお試しください。'); return; }
+      const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 5.0;
+      const done = () => onSourceReady({ type: 'video', name: file.name, width: video.videoWidth, height: video.videoHeight, duration, objectUrl: url }, triggeredByDrop);
+      if (video.readyState >= 2) done(); else video.addEventListener('loadeddata', done, { once: true });
+    };
+    const onError = () => { cleanup(); URL.revokeObjectURL(url); showAlert('ブラウザで再生できない動画形式です（MP4/H.264 または WebM 推奨）。右下の .bat からFFmpeg変換も利用できます。'); };
+    const cleanup = () => { video.removeEventListener('loadedmetadata', onLoaded); video.removeEventListener('error', onError); };
+    video.addEventListener('loadedmetadata', onLoaded); video.addEventListener('error', onError);
+  }
+
+  // ---- Pure-JS GIF89a Encoder ----
+  const BAYER4 = [[0,8,2,10],[12,4,14,6],[3,11,1,9],[15,7,13,5]];
+  const yieldFrame = () => new Promise((r) => setTimeout(r, 0));
+
+  function buildPaletteMedianCut(framesRgba, tableSize) {
+    const totalPixels = framesRgba.reduce((acc, f) => acc + (f.length >> 2), 0);
+    const stride = Math.max(1, Math.floor(totalPixels / 80000)), samples = [];
+    let pIndex = 0;
+    for (const data of framesRgba) for (let i = 0; i < data.length; i += 4) { if (pIndex % stride === 0) samples.push((data[i] << 16) | (data[i + 1] << 8) | data[i + 2]); pIndex++; }
+    const palette = new Uint8Array(tableSize * 3);
+    if (!samples.length) return { palette, usedColors: 1 };
+    const computeBox = (arr, start, end) => {
+      let rMin = 255, rMax = 0, gMin = 255, gMax = 0, bMin = 255, bMax = 0;
+      for (let i = start; i < end; i++) {
+        const c = arr[i], r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+        if (r < rMin) rMin = r; if (r > rMax) rMax = r; if (g < gMin) gMin = g; if (g > gMax) gMax = g; if (b < bMin) bMin = b; if (b > bMax) bMax = b;
+      }
+      const rS = rMax - rMin, gS = gMax - gMin, bS = bMax - bMin;
+      return { start, end, maxSpan: Math.max(rS, gS, bS), channel: rS >= gS && rS >= bS ? 0 : (gS >= bS ? 1 : 2), count: end - start };
+    };
+    const arr = Int32Array.from(samples), boxes = [computeBox(arr, 0, arr.length)], usable = tableSize - 1;
+    while (boxes.length < usable) {
+      let bestIdx = -1, bestScore = -1;
+      for (let i = 0; i < boxes.length; i++) { const b = boxes[i]; if (b.count < 2 || !b.maxSpan) continue; const sc = b.maxSpan * Math.pow(b.count, 0.35); if (sc > bestScore) { bestScore = sc; bestIdx = i; } }
+      if (bestIdx === -1) break;
+      const box = boxes[bestIdx], slice = arr.subarray(box.start, box.end), shift = box.channel === 0 ? 16 : (box.channel === 1 ? 8 : 0);
+      const counts = new Int32Array(256), offsets = new Int32Array(256);
+      for (let i = 0; i < slice.length; i++) counts[(slice[i] >> shift) & 255]++;
+      let sum = 0; for (let v = 0; v < 256; v++) { offsets[v] = sum; sum += counts[v]; }
+      const temp = new Int32Array(slice.length);
+      for (let i = 0; i < slice.length; i++) temp[offsets[(slice[i] >> shift) & 255]++] = slice[i];
+      slice.set(temp);
+      const mid = box.start + (box.count >> 1);
+      boxes[bestIdx] = computeBox(arr, box.start, mid); boxes.push(computeBox(arr, mid, box.end));
+    }
+    for (let i = 0; i < boxes.length; i++) {
+      const b = boxes[i]; let rS = 0, gS = 0, bS = 0;
+      for (let j = b.start; j < b.end; j++) { const c = arr[j]; rS += (c >> 16) & 255; gS += (c >> 8) & 255; bS += c & 255; }
+      const n = Math.max(1, b.count);
+      palette[i * 3] = Math.round(rS / n); palette[i * 3 + 1] = Math.round(gS / n); palette[i * 3 + 2] = Math.round(bS / n);
+    }
+    return { palette, usedColors: boxes.length };
+  }
+
+  function buildRgb555Lut(palette, usedColors) {
+    const lut = new Uint8Array(32768);
+    for (let r5 = 0; r5 < 32; r5++) {
+      const r = (r5 << 3) | 4;
+      for (let g5 = 0; g5 < 32; g5++) {
+        const g = (g5 << 3) | 4, base = (r5 << 10) | (g5 << 5);
+        for (let b5 = 0; b5 < 32; b5++) {
+          const b = (b5 << 3) | 4; let best = 0, bestDist = 0x7fffffff;
+          for (let c = 0; c < usedColors; c++) {
+            const idx = c * 3, dr = r - palette[idx], dg = g - palette[idx + 1], db = b - palette[idx + 2];
+            const d = dr * dr * 2 + dg * dg * 4 + db * db * 3;
+            if (d < bestDist) { bestDist = d; best = c; }
+          }
+          lut[base | b5] = best;
+        }
+      }
+    }
+    return lut;
+  }
+
+  function mapFrameToIndices(rgba, width, height, lut, ditherStrength) {
+    const out = new Uint8Array(width * height); let p = 0, o = 0;
+    if (ditherStrength <= 0) {
+      for (let i = 0; i < out.length; i++) { const r = rgba[p++], g = rgba[p++], b = rgba[p++]; p++; out[i] = lut[((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3)]; }
+    } else {
+      for (let y = 0; y < height; y++) {
+        const row = BAYER4[y & 3];
+        for (let x = 0; x < width; x++) {
+          const bias = (row[x & 3] / 16 - 0.5) * ditherStrength;
+          let r = rgba[p++] + bias, g = rgba[p++] + bias, b = rgba[p++] + bias; p++;
+          r = r < 0 ? 0 : (r > 255 ? 255 : r); g = g < 0 ? 0 : (g > 255 ? 255 : g); b = b < 0 ? 0 : (b > 255 ? 255 : b);
+          out[o++] = lut[((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3)];
+        }
+      }
+    }
+    return out;
+  }
+
+  class ByteWriter {
+    constructor(n = 65536) { this.buf = new Uint8Array(n); this.pos = 0; }
+    ensure(e) { if (this.pos + e <= this.buf.length) return; let l = this.buf.length * 2; while (l < this.pos + e) l *= 2; const nx = new Uint8Array(l); nx.set(this.buf.subarray(0, this.pos)); this.buf = nx; }
+    writeByte(b) { this.ensure(1); this.buf[this.pos++] = b & 0xff; }
+    writeU16(v) { this.ensure(2); this.buf[this.pos++] = v & 0xff; this.buf[this.pos++] = (v >> 8) & 0xff; }
+    writeBytes(a) { this.ensure(a.length); this.buf.set(a, this.pos); this.pos += a.length; }
+    writeString(s) { this.ensure(s.length); for (let i = 0; i < s.length; i++) this.buf[this.pos++] = s.charCodeAt(i); }
+    toUint8Array() { return this.buf.subarray(0, this.pos); }
+  }
+
+  function lzwEncode(indices, minCodeSize, writer) {
+    writer.writeByte(minCodeSize);
+    const clearCode = 1 << minCodeSize, eoiCode = clearCode + 1;
+    let codeSize = minCodeSize + 1, nextCode = eoiCode + 1;
+    const keys = new Int32Array(8192).fill(-1), vals = new Int16Array(8192), subBlock = new Uint8Array(255);
+    let subLen = 0, bitBuf = 0, bitCount = 0;
+    const flush = () => { if (subLen > 0) { writer.writeByte(subLen); writer.writeBytes(subBlock.subarray(0, subLen)); subLen = 0; } };
+    const emit = (c) => { bitBuf |= (c << bitCount); bitCount += codeSize; while (bitCount >= 8) { subBlock[subLen++] = bitBuf & 0xff; if (subLen === 255) flush(); bitBuf >>>= 8; bitCount -= 8; } };
+    emit(clearCode);
+    if (indices.length > 0) {
+      let prefix = indices[0];
+      for (let i = 1; i < indices.length; i++) {
+        const k = indices[i], key = (prefix << 8) | k;
+        let slot = ((key * 2654435761) >>> 19) & 8191, found = -1;
+        while (true) { const ex = keys[slot]; if (ex === -1) break; if (ex === key) { found = vals[slot]; break; } slot = (slot + 1) & 8191; }
+        if (found !== -1) prefix = found;
+        else {
+          emit(prefix);
+          if (nextCode < 4096) { keys[slot] = key; vals[slot] = nextCode++; if (nextCode > (1 << codeSize) && codeSize < 12) codeSize++; }
+          else { emit(clearCode); keys.fill(-1); nextCode = eoiCode + 1; codeSize = minCodeSize + 1; }
+          prefix = k;
+        }
+      }
+      emit(prefix);
+    }
+    emit(eoiCode); if (bitCount > 0) subBlock[subLen++] = bitBuf & 0xff; flush(); writer.writeByte(0);
+  }
+
+  function seekVideoExact(video, targetTime) {
+    return new Promise((resolve) => {
+      const clamped = Math.max(0, Math.min(video.duration || 0, targetTime));
+      if (Math.abs(video.currentTime - clamped) < 0.0005 && video.readyState >= 2) { requestAnimationFrame(() => resolve()); return; }
+      let settled = false;
+      const done = () => { if (settled) return; settled = true; video.removeEventListener('seeked', done); requestAnimationFrame(() => resolve()); };
+      video.addEventListener('seeked', done, { once: true });
+      video.currentTime = clamped; setTimeout(done, 1200);
+    });
+  }
+
+  function setProgress(label, pct) {
+    el.progressLabel.textContent = label;
+    const p = Math.max(0, Math.min(100, Math.round(pct)));
+    el.progressPct.textContent = `${p}%`;
+    el.progressBar.style.width = `${p}%`;
+  }
+
+  async function generateGif() {
+    if (!activeSource || state.isBusy) return;
+    hideAlert(); setPlaying(false);
+    state.isBusy = true; state.cancelRequested = false; syncUI();
+    el.progressSection.classList.remove('hidden');
+    const t0 = performance.now();
+
+    try {
+      const { outW, outH } = getOutputDimensions(), isImg = activeSource.type === 'image';
+      const fps = state.fps, start = state.startTime, end = Math.min(activeSource.duration, start + state.duration);
+      const frameCount = isImg ? 1 : Math.max(1, Math.round(Math.max(0.1, end - start) * fps));
+      const colorBits = state.quality === 'light' ? 7 : 8, tableSize = 1 << colorBits, transIdx = tableSize - 1;
+      const dither = state.quality === 'pixel' ? 0 : 14;
+
+      const outCanvas = document.createElement('canvas'); outCanvas.width = outW; outCanvas.height = outH;
+      const outCtx = outCanvas.getContext('2d', { willReadFrequently: true });
+      outCtx.imageSmoothingEnabled = state.quality !== 'pixel'; outCtx.imageSmoothingQuality = 'high';
+
+      let demoCanvas = null, demoCtx = null;
+      if (activeSource.type === 'demo') {
+        demoCanvas = document.createElement('canvas'); demoCanvas.width = activeSource.width; demoCanvas.height = activeSource.height;
+        demoCtx = demoCanvas.getContext('2d');
+      }
+
+      const framesRgba = [];
+      for (let i = 0; i < frameCount; i++) {
+        if (state.cancelRequested) throw new Error('CANCELLED');
+        if (isImg) outCtx.drawImage(activeSource.imgEl, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, outW, outH);
+        else if (activeSource.type === 'demo') {
+          DEMO_SOURCE.drawAt(demoCtx, Math.min(activeSource.duration - 0.001, start + i / fps));
+          outCtx.drawImage(demoCanvas, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, outW, outH);
+        } else {
+          await seekVideoExact(el.hiddenVideo, Math.min(activeSource.duration - 0.001, start + i / fps));
+          outCtx.drawImage(el.hiddenVideo, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, outW, outH);
+        }
+        framesRgba.push(outCtx.getImageData(0, 0, outW, outH).data);
+        setProgress(`フレーム抽出中 (${i + 1} / ${frameCount})`, ((i + 1) / frameCount) * 45);
+        if (i % 2 === 1) await yieldFrame();
+      }
+
+      if (state.cancelRequested) throw new Error('CANCELLED');
+      setProgress(`専用${tableSize}色パレットを最適化中...`, 50); await yieldFrame();
+      const { palette, usedColors } = buildPaletteMedianCut(framesRgba, tableSize);
+      setProgress('カラー変換テーブルを構築中...', 58); await yieldFrame();
+      const lut = buildRgb555Lut(palette, usedColors);
+      if (state.cancelRequested) throw new Error('CANCELLED');
+
+      const writer = new ByteWriter(outW * outH * 2);
+      writer.writeString('GIF89a'); writer.writeU16(outW); writer.writeU16(outH);
+      writer.writeByte(0x80 | 0x70 | (colorBits - 1)); writer.writeByte(0); writer.writeByte(0);
+      writer.writeBytes(palette);
+      if (state.loop && frameCount > 1) { writer.writeBytes([0x21, 0xff, 0x0b]); writer.writeString('NETSCAPE2.0'); writer.writeBytes([0x03, 0x01, 0x00, 0x00, 0x00]); }
+
+      let delayErr = 0, prevIndices = null;
+      const exactDelayCs = 100 / fps;
+      for (let i = 0; i < framesRgba.length; i++) {
+        if (state.cancelRequested) throw new Error('CANCELLED');
+        const rawCs = exactDelayCs + delayErr, delayCs = Math.max(2, Math.round(rawCs)); delayErr = rawCs - delayCs;
+        const curIndices = mapFrameToIndices(framesRgba[i], outW, outH, lut, dither);
+        if (!prevIndices) {
+          writer.writeBytes([0x21, 0xf9, 0x04, 0x04]); writer.writeU16(delayCs); writer.writeBytes([0x00, 0x00]);
+          writer.writeByte(0x2c); writer.writeU16(0); writer.writeU16(0); writer.writeU16(outW); writer.writeU16(outH); writer.writeByte(0x00);
+          lzwEncode(curIndices, colorBits, writer); prevIndices = curIndices;
+        } else {
+          let minX = outW, minY = outH, maxX = -1, maxY = -1;
+          for (let y = 0; y < outH; y++) { const ro = y * outW; for (let x = 0; x < outW; x++) if (curIndices[ro + x] !== prevIndices[ro + x]) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; } }
+          writer.writeBytes([0x21, 0xf9, 0x04, 0x05]); writer.writeU16(delayCs); writer.writeByte(transIdx); writer.writeByte(0x00);
+          if (maxX < minX) {
+            writer.writeByte(0x2c); writer.writeU16(0); writer.writeU16(0); writer.writeU16(1); writer.writeU16(1); writer.writeByte(0x00);
+            lzwEncode(new Uint8Array([transIdx]), colorBits, writer);
+          } else {
+            const bw = maxX - minX + 1, bh = maxY - minY + 1, sub = new Uint8Array(bw * bh); let s = 0;
+            for (let y = minY; y <= maxY; y++) { const ro = y * outW; for (let x = minX; x <= maxX; x++) { const c = curIndices[ro + x]; sub[s++] = c === prevIndices[ro + x] ? transIdx : c; } }
+            writer.writeByte(0x2c); writer.writeU16(minX); writer.writeU16(minY); writer.writeU16(bw); writer.writeU16(bh); writer.writeByte(0x00);
+            lzwEncode(sub, colorBits, writer); prevIndices = curIndices;
+          }
+        }
+        setProgress(`GIFエンコード中 (${i + 1} / ${framesRgba.length})`, 60 + ((i + 1) / framesRgba.length) * 40);
+        if (i % 2 === 1) await yieldFrame();
+      }
+
+      writer.writeByte(0x3b);
+      const blob = new Blob([writer.toUint8Array()], { type: 'image/gif' });
+      if (lastGifUrl) URL.revokeObjectURL(lastGifUrl);
+      lastGifUrl = URL.createObjectURL(blob);
+      el.resultGifImg.src = lastGifUrl;
+      el.btnDownloadGif.href = lastGifUrl;
+      el.btnDownloadGif.download = `${activeSource.name.replace(/\.[^.]+$/, '')}_${outW}x${outH}.gif`;
+      el.resultStats.textContent = `${outW}×${outH} · ${frameCount}フレーム · ${fps}fps · ${formatBytes(blob.size)} (${((performance.now() - t0) / 1000).toFixed(2)}秒)`;
+      el.resultSection.classList.remove('hidden');
+      el.resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      seekPreviewTo(state.currentTime);
+    } catch (err) {
+      if (err && err.message !== 'CANCELLED') showAlert(`GIF生成中にエラーが発生しました: ${err.message}`);
+    } finally {
+      state.isBusy = false; el.progressSection.classList.add('hidden'); syncUI();
+    }
+  }
+
+  // ---- Bindings ----
+  const triggerOpen = () => el.fileInput.click();
+  el.btnOpenFile.addEventListener('click', triggerOpen);
+  el.btnDropzoneSelect.addEventListener('click', (e) => { e.stopPropagation(); triggerOpen(); });
+  el.emptyDropZone.addEventListener('click', triggerOpen);
+  el.btnDemo.addEventListener('click', () => onSourceReady({ ...DEMO_SOURCE }, false));
+  el.btnDropzoneDemo.addEventListener('click', (e) => { e.stopPropagation(); onSourceReady({ ...DEMO_SOURCE }, false); });
+  el.fileInput.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) loadMediaFile(f, false); e.target.value = ''; });
+
+  let dragDepth = 0;
+  window.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; el.globalDropOverlay.classList.remove('hidden'); });
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('dragleave', (e) => { e.preventDefault(); dragDepth = Math.max(0, dragDepth - 1); if (dragDepth === 0) el.globalDropOverlay.classList.add('hidden'); });
+  window.addEventListener('drop', (e) => {
+    e.preventDefault(); dragDepth = 0; el.globalDropOverlay.classList.add('hidden');
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) loadMediaFile(f, true);
+  });
+
+  el.autoDetectToggle.addEventListener('change', () => { state.autoDetect = el.autoDetectToggle.checked; syncUI(); });
+  el.autoBlinkToggle.addEventListener('change', () => { state.autoBlink = el.autoBlinkToggle.checked; syncUI(); });
+  el.autoConvertToggle.addEventListener('change', () => { state.autoConvert = el.autoConvertToggle.checked; syncUI(); });
+  el.btnAutoDetect.addEventListener('click', () => runAutoDetect(false));
+  el.btnAutoDetectSide.addEventListener('click', () => runAutoDetect(false));
+  el.btnBlinkDetectTop.addEventListener('click', () => runBlinkLoopDetect());
+  el.btnBlinkDetectSide.addEventListener('click', () => runBlinkLoopDetect());
+  el.btnPickEyeRoi.addEventListener('click', () => { setPlaying(false); state.eyeRoiMode = !state.eyeRoiMode; syncUI(); });
+  el.btnCancelEyeRoiMode.addEventListener('click', () => { state.eyeRoiMode = false; eyeRoiDrag = null; syncUI(); });
+  el.btnResetEyeRoi.addEventListener('click', () => { state.manualEyeRoi = null; syncUI(); runBlinkLoopDetect(); });
+  el.chkIncludeOrnaments.addEventListener('change', () => { state.includeOrnaments = el.chkIncludeOrnaments.checked; if (lastDetection) applyDetectionToCrop(lastDetection); else syncUI(); });
+  el.rangeDetectMargin.addEventListener('input', () => { state.detectMargin = parseInt(el.rangeDetectMargin.value, 10) || 0; if (lastDetection) applyDetectionToCrop(lastDetection); else syncUI(); });
+  el.btnToggleDemoFrame.addEventListener('click', () => { state.demoOrnamental = !state.demoOrnamental; drawStage(); if (state.autoDetect) runAutoDetect(false); else syncUI(); });
+
+  document.querySelectorAll('#aspectGroup .seg-btn').forEach((btn) => btn.addEventListener('click', () => {
+    state.aspect = btn.dataset.aspect;
+    const r = getAspectRatioValue(state.aspect);
+    if (r) { const { w: sw, h: sh } = getSourceDims(); let nh = Math.round(state.cropW / r); if (nh > sh) { nh = sh; state.cropW = Math.min(sw, Math.round(nh * r)); } state.cropH = Math.max(16, nh); clampCropToSource(false); }
+    syncUI();
+  }));
+  el.btnCenterCrop.addEventListener('click', () => { const { w: sw, h: sh } = getSourceDims(); state.cropX = Math.max(0, Math.round((sw - state.cropW) / 2)); state.cropY = Math.max(0, Math.round((sh - state.cropH) / 2)); syncUI(); });
+  el.btnFullCrop.addEventListener('click', () => { const { w: sw, h: sh } = getSourceDims(); state.aspect = 'free'; state.cropX = 0; state.cropY = 0; state.cropW = sw; state.cropH = sh; syncUI(); });
+
+  const bindCrop = (inp, key) => inp.addEventListener('change', () => {
+    const v = parseInt(inp.value, 10); if (!Number.isFinite(v)) return;
+    state[key] = v; const r = getAspectRatioValue(state.aspect);
+    if (r && key === 'cropW') state.cropH = Math.round(state.cropW / r);
+    if (r && key === 'cropH') state.cropW = Math.round(state.cropH * r);
+    clampCropToSource(false); syncUI();
+  });
+  bindCrop(el.inputCropX, 'cropX'); bindCrop(el.inputCropY, 'cropY'); bindCrop(el.inputCropW, 'cropW'); bindCrop(el.inputCropH, 'cropH');
+
+  el.btnPlayPause.addEventListener('click', () => setPlaying(!state.isPlaying));
+  el.btnStepBack.addEventListener('click', () => { setPlaying(false); seekPreviewTo(state.currentTime - 1 / state.fps); });
+  el.btnStepFwd.addEventListener('click', () => { setPlaying(false); seekPreviewTo(state.currentTime + 1 / state.fps); });
+
+  let scrubbing = false;
+  const scrubTo = (cx) => { if (!activeSource || activeSource.type === 'image') return; const r = el.timelineTrack.getBoundingClientRect(); seekPreviewTo(Math.max(0, Math.min(1, (cx - r.left) / r.width)) * activeSource.duration); };
+  el.timelineTrack.addEventListener('pointerdown', (e) => { if (!activeSource || activeSource.type === 'image') return; scrubbing = true; setPlaying(false); el.timelineTrack.setPointerCapture(e.pointerId); scrubTo(e.clientX); });
+  el.timelineTrack.addEventListener('pointermove', (e) => { if (scrubbing) scrubTo(e.clientX); });
+  el.timelineTrack.addEventListener('pointerup', (e) => { if (scrubbing) { scrubbing = false; el.timelineTrack.releasePointerCapture(e.pointerId); } });
+
+  el.inputStart.addEventListener('change', () => {
+    if (!activeSource) return; const v = parseFloat(el.inputStart.value); if (!Number.isFinite(v)) return;
+    state.startTime = Math.max(0, Math.min(activeSource.duration - 0.1, v));
+    if (state.startTime + state.duration > activeSource.duration) state.duration = Math.max(0.1, Number((activeSource.duration - state.startTime).toFixed(2)));
+    seekPreviewTo(state.startTime); syncUI(); if (lastBlinkResult) renderBlinkUI();
+  });
+  el.inputDuration.addEventListener('change', () => {
+    if (!activeSource) return; const v = parseFloat(el.inputDuration.value); if (!Number.isFinite(v)) return;
+    state.duration = Math.max(0.1, Math.min(Math.max(0.1, activeSource.duration - state.startTime), v));
+    syncUI(); if (lastBlinkResult) renderBlinkUI();
+  });
+  el.btnSetStart.addEventListener('click', () => {
+    if (!activeSource) return; const prevEnd = state.startTime + state.duration;
+    state.startTime = Number(Math.min(activeSource.duration - 0.2, state.currentTime).toFixed(2));
+    state.duration = prevEnd > state.startTime + 0.1 ? Number(Math.min(activeSource.duration - state.startTime, prevEnd - state.startTime).toFixed(2)) : Number(Math.min(3.5, activeSource.duration - state.startTime).toFixed(2));
+    syncUI(); if (lastBlinkResult) renderBlinkUI();
+  });
+  el.btnSetEnd.addEventListener('click', () => {
+    if (!activeSource) return;
+    if (state.currentTime <= state.startTime + 0.1) state.startTime = Number(Math.max(0, state.currentTime - 1.0).toFixed(2));
+    state.duration = Number(Math.max(0.2, state.currentTime - state.startTime).toFixed(2));
+    syncUI(); if (lastBlinkResult) renderBlinkUI();
+  });
+  el.chkLoopRange.addEventListener('change', () => { state.loopRange = el.chkLoopRange.checked; });
+  window.addEventListener('keydown', (e) => { if (e.code === 'Space' && activeSource && activeSource.type !== 'image' && !['INPUT','SELECT','TEXTAREA','BUTTON'].includes(document.activeElement.tagName)) { e.preventDefault(); setPlaying(!state.isPlaying); } });
+
+  document.querySelectorAll('#fpsGroup .fps-btn').forEach((b) => b.addEventListener('click', () => { state.fps = Number(b.dataset.fps); syncUI(); }));
+  el.selectScaleMode.addEventListener('change', () => { state.scaleMode = el.selectScaleMode.value; syncUI(); });
+  el.inputCustomWidth.addEventListener('change', () => { const v = parseInt(el.inputCustomWidth.value, 10); if (Number.isFinite(v)) state.customWidth = Math.max(32, Math.min(1920, v)); syncUI(); });
+  el.selectQuality.addEventListener('change', () => { state.quality = el.selectQuality.value; syncUI(); });
+  el.chkGifLoop.addEventListener('change', () => { state.loop = el.chkGifLoop.checked; syncUI(); });
+
+  el.btnGenerate.addEventListener('click', generateGif);
+  el.btnRegenerate.addEventListener('click', generateGif);
+  el.btnCancelTask.addEventListener('click', () => { state.cancelRequested = true; });
+
+  el.btnCopyFfmpeg.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(el.ffmpegPreview.textContent); const o = el.btnCopyFfmpeg.textContent; el.btnCopyFfmpeg.textContent = 'コピーしました'; setTimeout(() => { el.btnCopyFfmpeg.textContent = o; }, 1600); }
+    catch { showAlert('クリップボードへのコピーに失敗しました。コマンド欄から手動でコピーしてください。'); }
+  });
+
+  el.btnDownloadBat.addEventListener('click', () => {
+    const { outW, outH } = getOutputDimensions();
+    const filters = [`fps=${state.fps}`, `crop=${state.cropW}:${state.cropH}:${state.cropX}:${state.cropY}`];
+    if (state.scaleMode !== 'orig' && outW !== state.cropW) filters.push(`scale=${outW}:-1:flags=lanczos`);
+    let palGen = 'palettegen=stats_mode=diff', palUse = 'paletteuse=dither=bayer:bayer_scale=3';
+    if (state.quality === 'pixel') palUse = 'paletteuse=dither=none';
+    else if (state.quality === 'light') palGen = 'palettegen=max_colors=128:stats_mode=diff';
+    const fc = `${filters.join(',')},split[s0][s1];[s0]${palGen}[p];[s1][p]${palUse}`;
+    const batLines = [
+      '@echo off', 'chcp 65001 >nul', 'setlocal', 'where ffmpeg >nul 2>&1',
+      'if errorlevel 1 (', '  echo [ERROR] ffmpeg が見つかりません。PowerShell で "winget install Gyan.FFmpeg" を実行してください。', '  pause', '  exit /b 1', ')',
+      'if "%~1"=="" (', '  echo 動画ファイルをこの .bat ファイルにドラッグ＆ドロップしてください。', '  pause', '  exit /b 1', ')',
+      ':loop', 'if "%~1"=="" goto done', 'set "INPUT=%~1"', `set "OUTPUT=%~dpn1_${outW}x${outH}.gif"`, 'echo 変換中: "%INPUT%"',
+      `ffmpeg -y -ss ${state.startTime.toFixed(2)} -t ${state.duration.toFixed(2)} -i "%INPUT%" -filter_complex "${fc}" -loop ${state.loop ? '0' : '-1'} "%OUTPUT%"`,
+      'echo 出力先: "%OUTPUT%"', 'shift', 'goto loop', ':done', 'echo.', 'echo すべてのGIF変換が完了しました！', 'pause',
+    ];
+    const blob = new Blob([batLines.join('\r\n') + '\r\n'], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = `drop_to_gif_${outW}x${outH}.bat`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  });
+
+  syncUI();
+})();
+</script>
+</body>
+</html>
