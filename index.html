@@ -559,6 +559,18 @@
     .text-link { background: none; border: none; color: var(--link); font-size: 12px; cursor: pointer; padding: 0; }
     .text-link:hover { text-decoration: underline; }
     .row-between { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+
+    /* iOS Safari does not decode <video> when display:none; keep it rendered at 2x2 near-zero opacity */
+    .ios-video-decoder {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: 2px;
+      height: 2px;
+      opacity: 0.01;
+      pointer-events: none;
+      z-index: -1;
+    }
   </style>
 </head>
 <body>
@@ -576,8 +588,8 @@
     </div>
   </div>
 
-  <input id="fileInput" type="file" accept="video/*,image/*,.mp4,.webm,.mov,.mkv,.png,.jpg,.jpeg,.webp" class="hidden" />
-  <video id="hiddenVideo" class="hidden" muted playsinline preload="auto" crossorigin="anonymous"></video>
+  <input id="fileInput" type="file" accept="video/*,image/*" class="hidden" />
+  <video id="hiddenVideo" class="ios-video-decoder" muted playsinline webkit-playsinline preload="auto"></video>
 
   <div class="app-shell">
     <!-- Header -->
@@ -733,11 +745,15 @@
             </div>
             <div class="inline-group">
               <button id="btnRegenerate" type="button" class="btn btn-sm">再生成</button>
+              <button id="btnShareGif" type="button" class="btn btn-sm btn-primary hidden">写真に保存 / 共有</button>
               <a id="btnDownloadGif" download="profile_card.gif" href="#" class="btn btn-sm btn-primary">GIFをダウンロード</a>
             </div>
           </div>
           <div class="result-preview checkerboard">
             <img id="resultGifImg" alt="生成されたGIF" />
+          </div>
+          <div id="iosSaveHint" class="hidden muted" style="padding: 8px 14px; border-top: 1px solid var(--border); text-align: center;">
+            iPhone / iPad では上の「写真に保存 / 共有」またはGIF画像を長押し →「"写真"に保存」で保存できます
           </div>
         </section>
       </div>
@@ -927,10 +943,13 @@
     manualEyeRoi: null,
   };
 
+  const isIOS = /iP(hone|od|ad)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   let activeSource = null;
   let lastDetection = null;
   let lastBlinkResult = null;
   let lastGifUrl = null;
+  let lastGifBlob = null;
+  let lastGifFileName = 'profile_card.gif';
 
   const $ = (id) => document.getElementById(id);
   const el = {
@@ -958,7 +977,7 @@
     progressSection: $('progressSection'), progressLabel: $('progressLabel'),
     progressPct: $('progressPct'), progressBar: $('progressBar'), btnCancelTask: $('btnCancelTask'),
     resultSection: $('resultSection'), resultStats: $('resultStats'), resultGifImg: $('resultGifImg'),
-    btnRegenerate: $('btnRegenerate'), btnDownloadGif: $('btnDownloadGif'),
+    btnRegenerate: $('btnRegenerate'), btnShareGif: $('btnShareGif'), btnDownloadGif: $('btnDownloadGif'), iosSaveHint: $('iosSaveHint'),
     blinkBadge: $('blinkBadge'), blinkCurveWrap: $('blinkCurveWrap'),
     blinkEyeModeLabel: $('blinkEyeModeLabel'), blinkCurveCanvas: $('blinkCurveCanvas'),
     blinkPairList: $('blinkPairList'), btnBlinkDetectSide: $('btnBlinkDetectSide'),
@@ -1541,20 +1560,29 @@
     el.progressSection.classList.remove('hidden');
     syncUI();
 
+    let scanCanvas = null, demoCanvas = null, iosStage = null;
     try {
+      if (activeSource.type === 'video') {
+        await primeVideoForIOS(el.hiddenVideo);
+      }
+
       const scanFps = 12, maxScanSec = 15.0, totalDur = activeSource.duration;
       const scanStart = totalDur > maxScanSec ? Math.max(0, Math.min(totalDur - maxScanSec, state.currentTime - 1.0)) : 0;
       const scanEnd = Math.min(totalDur, scanStart + maxScanSec);
       const sampleCount = Math.max(12, Math.floor((scanEnd - scanStart) * scanFps));
 
       const W = 160, H = Math.max(48, Math.min(160, Math.round((state.cropH / Math.max(1, state.cropW)) * W)));
-      const scanCanvas = document.createElement('canvas'); scanCanvas.width = W; scanCanvas.height = H;
+      scanCanvas = document.createElement('canvas'); scanCanvas.width = W; scanCanvas.height = H;
       const scanCtx = scanCanvas.getContext('2d', { willReadFrequently: true });
 
-      let demoCanvas = null, demoCtx = null;
+      let demoCtx = null;
       if (activeSource.type === 'demo') {
         demoCanvas = document.createElement('canvas'); demoCanvas.width = activeSource.width; demoCanvas.height = activeSource.height;
         demoCtx = demoCanvas.getContext('2d');
+      } else if (isIOS) {
+        iosStage = document.createElement('canvas');
+        iosStage.width = activeSource.width;
+        iosStage.height = activeSource.height;
       }
 
       const frames = [];
@@ -1566,7 +1594,7 @@
           scanCtx.drawImage(demoCanvas, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, W, H);
         } else {
           await seekVideoExact(el.hiddenVideo, t);
-          scanCtx.drawImage(el.hiddenVideo, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, W, H);
+          drawVideoCroppedSafe(el.hiddenVideo, scanCtx, state.cropX, state.cropY, state.cropW, state.cropH, W, H, iosStage);
         }
         const rgba = scanCtx.getImageData(0, 0, W, H).data;
         const rgb = new Uint8Array(W * H * 3);
@@ -1600,6 +1628,9 @@
       if (err && err.message !== 'CANCELLED') showAlert(`瞬き検出中にエラーが発生しました: ${err.message}`);
       return null;
     } finally {
+      if (scanCanvas) { scanCanvas.width = 0; scanCanvas.height = 0; }
+      if (demoCanvas) { demoCanvas.width = 0; demoCanvas.height = 0; }
+      if (iosStage) { iosStage.width = 0; iosStage.height = 0; }
       state.isBusy = false;
       el.progressSection.classList.add('hidden');
       syncUI();
@@ -1725,8 +1756,10 @@
     if (activeSource.type === 'demo') DEMO_SOURCE.drawAt(ctx, state.currentTime);
     else if (activeSource.type === 'image') ctx.drawImage(activeSource.imgEl, 0, 0, activeSource.width, activeSource.height);
     else if (el.hiddenVideo.readyState >= 2) ctx.drawImage(el.hiddenVideo, 0, 0, activeSource.width, activeSource.height);
-    else return null;
-    return ctx.getImageData(0, 0, c.width, c.height);
+    else { c.width = 0; c.height = 0; return null; }
+    const data = ctx.getImageData(0, 0, c.width, c.height);
+    c.width = 0; c.height = 0;
+    return data;
   }
 
   async function runAutoDetect(preferMidFrame = false) {
@@ -1927,9 +1960,10 @@
       { id: 'sw', x: rx, y: ry + rh, cursor: 'nesw-resize' }, { id: 'w', x: rx, y: ry + rh / 2, cursor: 'ew-resize' },
     ];
   }
-  function hitTestStage(mx, my) {
+  function hitTestStage(mx, my, isTouch = false) {
+    const rad = isTouch ? 18 : 9;
     const { ox, oy, scale } = stageLayout, rx = ox + state.cropX * scale, ry = oy + state.cropY * scale, rw = state.cropW * scale, rh = state.cropH * scale;
-    for (const h of getHandlePoints(rx, ry, rw, rh)) if (Math.abs(mx - h.x) <= 9 && Math.abs(my - h.y) <= 9) return { mode: h.id, cursor: h.cursor };
+    for (const h of getHandlePoints(rx, ry, rw, rh)) if (Math.abs(mx - h.x) <= rad && Math.abs(my - h.y) <= rad) return { mode: h.id, cursor: h.cursor };
     if (mx >= rx && mx <= rx + rw && my >= ry && my <= ry + rh) return { mode: 'move', cursor: 'move' };
     return { mode: 'new', cursor: 'crosshair' };
   }
@@ -1943,7 +1977,7 @@
       const vy = Math.max(state.cropY, Math.min(state.cropY + state.cropH, (my - stageLayout.oy) / stageLayout.scale));
       eyeRoiDrag = { x0: vx, y0: vy, x1: vx, y1: vy }; drawStage(); return;
     }
-    const hit = hitTestStage(mx, my);
+    const hit = hitTestStage(mx, my, e.pointerType === 'touch');
     if (hit.mode === 'new') {
       const vx = Math.max(0, Math.min(activeSource.width - 16, Math.round((mx - stageLayout.ox) / stageLayout.scale)));
       const vy = Math.max(0, Math.min(activeSource.height - 16, Math.round((my - stageLayout.oy) / stageLayout.scale)));
@@ -2085,6 +2119,29 @@
     if (triggeredByDrop && state.autoConvert && src.type !== 'image') setTimeout(() => generateGif(), 80);
   }
 
+  async function primeVideoForIOS(video) {
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    try {
+      const p = video.play();
+      if (p && typeof p.then === 'function') await p;
+      video.pause();
+    } catch {}
+    if (video.readyState < 2) {
+      await new Promise((resolve) => {
+        let done = false;
+        const finish = () => { if (done) return; done = true; video.removeEventListener('loadeddata', finish); video.removeEventListener('seeked', finish); resolve(); };
+        video.addEventListener('loadeddata', finish, { once: true });
+        video.addEventListener('seeked', finish, { once: true });
+        try { video.currentTime = 0.01; } catch {}
+        setTimeout(finish, 900);
+      });
+    }
+  }
+
   function loadMediaFile(file, triggeredByDrop = false) {
     if (!file) return;
     if (activeSource && activeSource.objectUrl) URL.revokeObjectURL(activeSource.objectUrl);
@@ -2096,15 +2153,22 @@
       img.onerror = () => { URL.revokeObjectURL(url); showAlert('画像ファイルを読み込めませんでした。'); };
       img.src = url; return;
     }
-    const video = el.hiddenVideo; video.pause(); video.src = url; video.load();
-    const onLoaded = () => {
+    const video = el.hiddenVideo;
+    video.pause();
+    video.muted = true;
+    video.playsInline = true;
+    video.src = url;
+    video.load();
+    const onLoaded = async () => {
       cleanup();
       if (!video.videoWidth || !video.videoHeight) { showAlert('映像トラックを読み込めませんでした。MP4(H.264)またはWebM形式をお試しください。'); return; }
       const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 5.0;
-      const done = () => onSourceReady({ type: 'video', name: file.name, width: video.videoWidth, height: video.videoHeight, duration, objectUrl: url }, triggeredByDrop);
-      if (video.readyState >= 2) done(); else video.addEventListener('loadeddata', done, { once: true });
+      if (video.readyState < 2 || isIOS) {
+        await primeVideoForIOS(video);
+      }
+      onSourceReady({ type: 'video', name: file.name, width: video.videoWidth, height: video.videoHeight, duration, objectUrl: url }, triggeredByDrop);
     };
-    const onError = () => { cleanup(); URL.revokeObjectURL(url); showAlert('ブラウザで再生できない動画形式です（MP4/H.264 または WebM 推奨）。右下の .bat からFFmpeg変換も利用できます。'); };
+    const onError = () => { cleanup(); URL.revokeObjectURL(url); showAlert('ブラウザで再生できない動画形式です（MP4/H.264 または MOV/WebM 推奨）。右下の .bat からFFmpeg変換も利用できます。'); };
     const cleanup = () => { video.removeEventListener('loadedmetadata', onLoaded); video.removeEventListener('error', onError); };
     video.addEventListener('loadedmetadata', onLoaded); video.addEventListener('error', onError);
   }
@@ -2229,15 +2293,70 @@
     emit(eoiCode); if (bitCount > 0) subBlock[subLen++] = bitBuf & 0xff; flush(); writer.writeByte(0);
   }
 
-  function seekVideoExact(video, targetTime) {
+  function drawVideoCroppedSafe(video, outCtx, sx, sy, sw, sh, outW, outH, iosStageCanvas) {
+    const vw = video.videoWidth || 1, vh = video.videoHeight || 1;
+    const cx = Math.max(0, Math.min(vw - 1, Math.floor(sx)));
+    const cy = Math.max(0, Math.min(vh - 1, Math.floor(sy)));
+    const cw = Math.max(1, Math.min(vw - cx, Math.floor(sw)));
+    const ch = Math.max(1, Math.min(vh - cy, Math.floor(sh)));
+    outCtx.clearRect(0, 0, outW, outH);
+    if (iosStageCanvas) {
+      // iOS WebKit bug workaround: 3-arg drawImage(video, 0, 0) onto intermediate canvas is far more reliable than 9-arg cropped video drawImage
+      const sCtx = iosStageCanvas.getContext('2d');
+      sCtx.drawImage(video, 0, 0, vw, vh);
+      outCtx.drawImage(iosStageCanvas, cx, cy, cw, ch, 0, 0, outW, outH);
+    } else {
+      outCtx.drawImage(video, cx, cy, cw, ch, 0, 0, outW, outH);
+    }
+  }
+
+  function isRgbaBlank(rgba) {
+    const step = Math.max(4, Math.floor(rgba.length / 256) & ~3);
+    for (let i = 0; i < rgba.length; i += step) {
+      if (rgba[i + 3] > 0 && (rgba[i] > 0 || rgba[i + 1] > 0 || rgba[i + 2] > 0)) return false;
+    }
+    return true;
+  }
+
+  function waitNextFrames(count = 1, extraMs = 0) {
     return new Promise((resolve) => {
-      const clamped = Math.max(0, Math.min(video.duration || 0, targetTime));
-      if (Math.abs(video.currentTime - clamped) < 0.0005 && video.readyState >= 2) { requestAnimationFrame(() => resolve()); return; }
-      let settled = false;
-      const done = () => { if (settled) return; settled = true; video.removeEventListener('seeked', done); requestAnimationFrame(() => resolve()); };
-      video.addEventListener('seeked', done, { once: true });
-      video.currentTime = clamped; setTimeout(done, 1200);
+      let n = count;
+      const step = () => {
+        if (--n <= 0) {
+          if (extraMs > 0) setTimeout(resolve, extraMs);
+          else resolve();
+        } else requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
     });
+  }
+
+  async function seekVideoExact(video, targetTime) {
+    const dur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : targetTime;
+    const clamped = Math.max(0.001, Math.min(Math.max(0.001, dur - 0.002), targetTime));
+
+    if (video.readyState < 2) {
+      await primeVideoForIOS(video);
+    }
+
+    if (Math.abs(video.currentTime - clamped) >= 0.001) {
+      await new Promise((resolve) => {
+        let settled = false;
+        const done = () => { if (settled) return; settled = true; video.removeEventListener('seeked', done); resolve(); };
+        video.addEventListener('seeked', done, { once: true });
+        try { video.currentTime = clamped; } catch { done(); }
+        setTimeout(done, 1400);
+      });
+    }
+
+    // Wait for iOS WebKit to commit the decoded CVPixelBuffer to the compositing layer
+    if (video.readyState < 2) {
+      const startWait = performance.now();
+      while (video.readyState < 2 && performance.now() - startWait < 500) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+    }
+    await waitNextFrames(isIOS ? 2 : 1, isIOS ? 22 : 0);
   }
 
   function setProgress(label, pct) {
@@ -2254,6 +2373,7 @@
     el.progressSection.classList.remove('hidden');
     const t0 = performance.now();
 
+    let outCanvas = null, demoCanvas = null, iosStage = null;
     try {
       const { outW, outH } = getOutputDimensions(), isImg = activeSource.type === 'image';
       const fps = state.fps, start = state.startTime, end = Math.min(activeSource.duration, start + state.duration);
@@ -2261,40 +2381,93 @@
       const colorBits = state.quality === 'light' ? 7 : 8, tableSize = 1 << colorBits, transIdx = tableSize - 1;
       const dither = state.quality === 'pixel' ? 0 : 14;
 
-      const outCanvas = document.createElement('canvas'); outCanvas.width = outW; outCanvas.height = outH;
-      const outCtx = outCanvas.getContext('2d', { willReadFrequently: true });
-      outCtx.imageSmoothingEnabled = state.quality !== 'pixel'; outCtx.imageSmoothingQuality = 'high';
+      if (activeSource.type === 'video') {
+        setProgress('動画デコーダを準備中...', 2);
+        await primeVideoForIOS(el.hiddenVideo);
+      }
 
-      let demoCanvas = null, demoCtx = null;
+      outCanvas = document.createElement('canvas'); outCanvas.width = outW; outCanvas.height = outH;
+      const outCtx = outCanvas.getContext('2d', { willReadFrequently: true });
+      outCtx.imageSmoothingEnabled = state.quality !== 'pixel';
+      try { outCtx.imageSmoothingQuality = 'high'; } catch {}
+
+      let demoCtx = null;
       if (activeSource.type === 'demo') {
         demoCanvas = document.createElement('canvas'); demoCanvas.width = activeSource.width; demoCanvas.height = activeSource.height;
         demoCtx = demoCanvas.getContext('2d');
+      } else if (activeSource.type === 'video' && isIOS) {
+        iosStage = document.createElement('canvas');
+        iosStage.width = activeSource.width;
+        iosStage.height = activeSource.height;
       }
 
-      const framesRgba = [];
-      for (let i = 0; i < frameCount; i++) {
-        if (state.cancelRequested) throw new Error('CANCELLED');
-        if (isImg) outCtx.drawImage(activeSource.imgEl, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, outW, outH);
-        else if (activeSource.type === 'demo') {
-          DEMO_SOURCE.drawAt(demoCtx, Math.min(activeSource.duration - 0.001, start + i / fps));
-          outCtx.drawImage(demoCanvas, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, outW, outH);
-        } else {
-          await seekVideoExact(el.hiddenVideo, Math.min(activeSource.duration - 0.001, start + i / fps));
-          outCtx.drawImage(el.hiddenVideo, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, outW, outH);
+      async function captureFrameAt(frameIdx) {
+        const t = Math.min(activeSource.duration - 0.002, start + frameIdx / fps);
+        if (isImg) {
+          outCtx.drawImage(activeSource.imgEl, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, outW, outH);
+          return outCtx.getImageData(0, 0, outW, outH).data;
         }
-        framesRgba.push(outCtx.getImageData(0, 0, outW, outH).data);
-        setProgress(`フレーム抽出中 (${i + 1} / ${frameCount})`, ((i + 1) / frameCount) * 45);
-        if (i % 2 === 1) await yieldFrame();
+        if (activeSource.type === 'demo') {
+          DEMO_SOURCE.drawAt(demoCtx, t);
+          outCtx.drawImage(demoCanvas, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, outW, outH);
+          return outCtx.getImageData(0, 0, outW, outH).data;
+        }
+        await seekVideoExact(el.hiddenVideo, t);
+        drawVideoCroppedSafe(el.hiddenVideo, outCtx, state.cropX, state.cropY, state.cropW, state.cropH, outW, outH, iosStage);
+        let rgba = outCtx.getImageData(0, 0, outW, outH).data;
+        // On iOS Safari, occasionally the very first seek returns a blank buffer before decoder warms up -> kick once & retry
+        if (isIOS && frameIdx === 0 && isRgbaBlank(rgba)) {
+          await primeVideoForIOS(el.hiddenVideo);
+          await seekVideoExact(el.hiddenVideo, Math.min(activeSource.duration - 0.002, t + 0.02));
+          drawVideoCroppedSafe(el.hiddenVideo, outCtx, state.cropX, state.cropY, state.cropW, state.cropH, outW, outH, iosStage);
+          rgba = outCtx.getImageData(0, 0, outW, outH).data;
+        }
+        return rgba;
+      }
+
+      // Use 2-pass low-RAM streaming on iOS or whenever uncompressed frame buffer would exceed 24MB
+      const estRawBytes = frameCount * outW * outH * 4;
+      const useStreaming = isIOS || estRawBytes > 24 * 1024 * 1024;
+
+      let palette, usedColors, lut;
+      let cachedFrames = null;
+
+      if (useStreaming) {
+        // Pass 1: Sample up to 10 evenly spaced frames to build optimal 256/128-color palette (~10x less RAM!)
+        const sampleCount = Math.min(frameCount, 10);
+        const paletteSamples = [];
+        for (let s = 0; s < sampleCount; s++) {
+          if (state.cancelRequested) throw new Error('CANCELLED');
+          const fi = sampleCount === 1 ? 0 : Math.round((s / (sampleCount - 1)) * (frameCount - 1));
+          paletteSamples.push(await captureFrameAt(fi));
+          setProgress(`カラーパレット解析中 (${s + 1} / ${sampleCount})`, 5 + ((s + 1) / sampleCount) * 18);
+          await yieldFrame();
+        }
+        if (state.cancelRequested) throw new Error('CANCELLED');
+        setProgress(`専用${tableSize}色パレットを最適化中...`, 26); await yieldFrame();
+        ({ palette, usedColors } = buildPaletteMedianCut(paletteSamples, tableSize));
+        paletteSamples.length = 0; // release sample buffers immediately
+        setProgress('カラー変換テーブルを構築中...', 32); await yieldFrame();
+        lut = buildRgb555Lut(palette, usedColors);
+      } else {
+        // Fast single-pass in-memory mode for small clips on desktop
+        cachedFrames = [];
+        for (let i = 0; i < frameCount; i++) {
+          if (state.cancelRequested) throw new Error('CANCELLED');
+          cachedFrames.push(await captureFrameAt(i));
+          setProgress(`フレーム抽出中 (${i + 1} / ${frameCount})`, ((i + 1) / frameCount) * 45);
+          if (i % 2 === 1) await yieldFrame();
+        }
+        if (state.cancelRequested) throw new Error('CANCELLED');
+        setProgress(`専用${tableSize}色パレットを最適化中...`, 50); await yieldFrame();
+        ({ palette, usedColors } = buildPaletteMedianCut(cachedFrames, tableSize));
+        setProgress('カラー変換テーブルを構築中...', 58); await yieldFrame();
+        lut = buildRgb555Lut(palette, usedColors);
       }
 
       if (state.cancelRequested) throw new Error('CANCELLED');
-      setProgress(`専用${tableSize}色パレットを最適化中...`, 50); await yieldFrame();
-      const { palette, usedColors } = buildPaletteMedianCut(framesRgba, tableSize);
-      setProgress('カラー変換テーブルを構築中...', 58); await yieldFrame();
-      const lut = buildRgb555Lut(palette, usedColors);
-      if (state.cancelRequested) throw new Error('CANCELLED');
 
-      const writer = new ByteWriter(outW * outH * 2);
+      const writer = new ByteWriter(Math.min(2 * 1024 * 1024, outW * outH * 2));
       writer.writeString('GIF89a'); writer.writeU16(outW); writer.writeU16(outH);
       writer.writeByte(0x80 | 0x70 | (colorBits - 1)); writer.writeByte(0); writer.writeByte(0);
       writer.writeBytes(palette);
@@ -2302,10 +2475,16 @@
 
       let delayErr = 0, prevIndices = null;
       const exactDelayCs = 100 / fps;
-      for (let i = 0; i < framesRgba.length; i++) {
+      const encodeBasePct = useStreaming ? 34 : 60;
+      const encodeSpanPct = 100 - encodeBasePct;
+
+      for (let i = 0; i < frameCount; i++) {
         if (state.cancelRequested) throw new Error('CANCELLED');
         const rawCs = exactDelayCs + delayErr, delayCs = Math.max(2, Math.round(rawCs)); delayErr = rawCs - delayCs;
-        const curIndices = mapFrameToIndices(framesRgba[i], outW, outH, lut, dither);
+        const rgba = cachedFrames ? cachedFrames[i] : await captureFrameAt(i);
+        const curIndices = mapFrameToIndices(rgba, outW, outH, lut, dither);
+        if (cachedFrames) cachedFrames[i] = null; // allow GC as we encode
+
         if (!prevIndices) {
           writer.writeBytes([0x21, 0xf9, 0x04, 0x04]); writer.writeU16(delayCs); writer.writeBytes([0x00, 0x00]);
           writer.writeByte(0x2c); writer.writeU16(0); writer.writeU16(0); writer.writeU16(outW); writer.writeU16(outH); writer.writeByte(0x00);
@@ -2324,17 +2503,31 @@
             lzwEncode(sub, colorBits, writer); prevIndices = curIndices;
           }
         }
-        setProgress(`GIFエンコード中 (${i + 1} / ${framesRgba.length})`, 60 + ((i + 1) / framesRgba.length) * 40);
-        if (i % 2 === 1) await yieldFrame();
+        setProgress(`GIFエンコード中 (${i + 1} / ${frameCount})`, encodeBasePct + ((i + 1) / frameCount) * encodeSpanPct);
+        if (useStreaming || i % 2 === 1) await yieldFrame();
       }
 
       writer.writeByte(0x3b);
       const blob = new Blob([writer.toUint8Array()], { type: 'image/gif' });
       if (lastGifUrl) URL.revokeObjectURL(lastGifUrl);
+      lastGifBlob = blob;
+      lastGifFileName = `${activeSource.name.replace(/\.[^.]+$/, '')}_${outW}x${outH}.gif`;
       lastGifUrl = URL.createObjectURL(blob);
+
       el.resultGifImg.src = lastGifUrl;
       el.btnDownloadGif.href = lastGifUrl;
-      el.btnDownloadGif.download = `${activeSource.name.replace(/\.[^.]+$/, '')}_${outW}x${outH}.gif`;
+      el.btnDownloadGif.download = lastGifFileName;
+
+      // Show native Share / Save-to-Photos button on iOS or browsers supporting Web Share with files
+      let canShareFile = false;
+      try {
+        if (navigator.canShare && typeof File !== 'undefined') {
+          canShareFile = navigator.canShare({ files: [new File([blob], lastGifFileName, { type: 'image/gif' })] });
+        }
+      } catch {}
+      el.btnShareGif.classList.toggle('hidden', !canShareFile);
+      el.iosSaveHint.classList.toggle('hidden', !isIOS);
+
       el.resultStats.textContent = `${outW}×${outH} · ${frameCount}フレーム · ${fps}fps · ${formatBytes(blob.size)} (${((performance.now() - t0) / 1000).toFixed(2)}秒)`;
       el.resultSection.classList.remove('hidden');
       el.resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -2342,9 +2535,22 @@
     } catch (err) {
       if (err && err.message !== 'CANCELLED') showAlert(`GIF生成中にエラーが発生しました: ${err.message}`);
     } finally {
+      if (outCanvas) { outCanvas.width = 0; outCanvas.height = 0; }
+      if (demoCanvas) { demoCanvas.width = 0; demoCanvas.height = 0; }
+      if (iosStage) { iosStage.width = 0; iosStage.height = 0; }
       state.isBusy = false; el.progressSection.classList.add('hidden'); syncUI();
     }
   }
+
+  el.btnShareGif.addEventListener('click', async () => {
+    if (!lastGifBlob) return;
+    try {
+      const file = new File([lastGifBlob], lastGifFileName, { type: 'image/gif' });
+      await navigator.share({ files: [file], title: lastGifFileName });
+    } catch (err) {
+      if (err && err.name !== 'AbortError') showAlert('共有シートを開けませんでした。下のGIF画像を長押しして保存してください。');
+    }
+  });
 
   // ---- Bindings ----
   const triggerOpen = () => el.fileInput.click();
