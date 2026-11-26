@@ -2792,8 +2792,15 @@
     el.btnShareGif.classList.remove('hidden');
     el.iosSaveHint.classList.toggle('hidden', !isIOS);
     el.resultStats.textContent = statsText;
+    el.progressSection.classList.add('hidden');
     el.resultSection.classList.remove('hidden');
-    el.resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    requestAnimationFrame(() => {
+      const rect = el.resultSection.getBoundingClientRect();
+      if (rect.top < 8 || rect.bottom > window.innerHeight - 8) {
+        const y = Math.max(0, (window.scrollY || window.pageYOffset || 0) + rect.top - 12);
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
+    });
   }
 
   // ---- Pure-JS Fast-Start ISO BMFF (MP4) Muxer for H.264 / AVC1 ----
