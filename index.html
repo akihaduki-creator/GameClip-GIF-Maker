@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GameClip GIF Maker — プロフィールカード枠＆瞬きループ自動検出GIFメーカー</title>
-  <meta name="description" content="ゲーム録画からプロフィールカードの枠（装飾はみ出し含む）とキャラクターの瞬きタイミングを自動検出し、ブラウザ内だけで高画質なループGIFを作成できるツールです。" />
+  <title>クルスタ名刺GIFメーカー</title>
+  <meta name="description" content="クルスタの名刺録画からプロフィールカード枠（装飾はみ出し含む）とキャラクターの瞬きタイミングを自動検出し、ブラウザ内だけで高画質なループGIFを作成できるツールです。" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Ctext x='16' y='21' text-anchor='middle' fill='white' font-family='system-ui,sans-serif' font-size='12' font-weight='700'%3EGIF%3C/text%3E%3C/svg%3E" />
   <style>
     :root,
@@ -314,11 +314,14 @@
     }
     @media (max-width: 640px) { .stage-wrap { height: 320px; } }
     .stage-canvas {
-      touch-action: none;
+      touch-action: pan-y;
       user-select: none;
       display: block;
       width: 100%;
       height: 100%;
+    }
+    .stage-canvas.editing {
+      touch-action: none;
     }
     .hud-pill {
       pointer-events: none;
@@ -597,7 +600,7 @@
       <div class="brand">
         <div class="brand-mark">GIF</div>
         <div>
-          <h1>GameClip GIF Maker</h1>
+          <h1>クルスタ名刺GIFメーカー</h1>
           <p>プロフィールカード枠＋瞬きループ（目を閉じた瞬間）を自動判定してブラウザ内でGIF化</p>
         </div>
       </div>
@@ -616,8 +619,8 @@
           <span>自動GIF生成</span>
         </label>
         <button id="btnThemeToggle" type="button" class="btn" title="ライト / ダークテーマ切替">テーマ切替</button>
-        <button id="btnDemo" type="button" class="btn">サンプルで試す</button>
-        <button id="btnOpenFile" type="button" class="btn btn-primary">動画を開く</button>
+        <button id="btnOpenFile" type="button" class="btn">動画を開く</button>
+        <button id="btnGenerateHeader" type="button" disabled class="btn btn-primary">GIFを作成</button>
       </div>
     </header>
 
@@ -626,6 +629,42 @@
       <span id="alertText"></span>
       <button id="btnCloseAlert" type="button" class="text-link">閉じる</button>
     </div>
+
+    <!-- Progress (directly below header) -->
+    <section id="progressSection" class="card card-pad hidden">
+      <div class="row-between">
+        <span id="progressLabel" style="font-weight: 600;">処理中...</span>
+        <div class="inline-group">
+          <span id="progressPct" class="muted mono">0%</span>
+          <button id="btnCancelTask" type="button" class="btn btn-sm">中止</button>
+        </div>
+      </div>
+      <div class="progress-rail">
+        <div id="progressBar" class="progress-fill"></div>
+      </div>
+    </section>
+
+    <!-- Result Preview (directly below header) -->
+    <section id="resultSection" class="card hidden">
+      <div class="card-header">
+        <div class="inline-group">
+          <span class="status-dot"></span>
+          <h2 class="card-title">生成されたGIFプレビュー</h2>
+          <span id="resultStats" class="muted mono"></span>
+        </div>
+        <div class="inline-group">
+          <button id="btnRegenerate" type="button" class="btn btn-sm">再生成</button>
+          <button id="btnShareGif" type="button" class="btn btn-sm btn-primary">写真に保存 / 共有</button>
+          <a id="btnDownloadGif" download="profile_card.gif" href="#" class="btn btn-sm">GIFをダウンロード</a>
+        </div>
+      </div>
+      <div class="result-preview checkerboard">
+        <img id="resultGifImg" alt="生成されたGIF" />
+      </div>
+      <div id="iosSaveHint" class="hidden muted" style="padding: 8px 14px; border-top: 1px solid var(--border); text-align: center;">
+        iPhone / iPad では上の「写真に保存 / 共有」またはGIF画像を長押し →「"写真"に保存」で保存できます
+      </div>
+    </section>
 
     <!-- Main 2-Column Workspace -->
     <main class="workspace">
@@ -661,6 +700,7 @@
               <button id="btnToggleDemoFrame" type="button" class="btn btn-sm hidden">枠切替: 装飾あり</button>
             </div>
             <div class="inline-group">
+              <button id="btnToggleCropEdit" type="button" class="btn btn-sm">枠を手動調整</button>
               <button id="btnAutoDetect" type="button" class="btn btn-sm">枠自動検出</button>
               <button id="btnBlinkDetectTop" type="button" class="btn btn-sm btn-primary">瞬きループ検出</button>
               <div id="aspectGroup" class="seg-group">
@@ -673,6 +713,11 @@
             </div>
           </div>
 
+          <div id="cropEditModeBanner" class="roi-banner hidden">
+            <strong>枠の手動調整モード：ドラッグで位置・サイズを変更できます</strong>
+            <button id="btnDoneCropEdit" type="button" class="btn btn-sm btn-primary">完了（ロック）</button>
+          </div>
+
           <div id="eyeRoiModeBanner" class="roi-banner hidden">
             <strong>目の位置指定モード：画面上でキャラクターの目の周りをドラッグして囲ってください</strong>
             <button id="btnCancelEyeRoiMode" type="button" class="btn btn-sm">キャンセル</button>
@@ -681,7 +726,7 @@
           <div id="stageContainer" class="stage-wrap" tabindex="0">
             <canvas id="stageCanvas" class="stage-canvas"></canvas>
             <div class="hud-pill hud-left mono"><span id="stageHudText">X: 153  Y: 85  ·  718 × 406 px</span></div>
-            <div class="hud-pill hud-right">ドラッグ調整 / 矢印キー1px微調整</div>
+            <div id="stageHintBadge" class="hud-pill hud-right">スクロール保護中（「枠を手動調整」で変更可）</div>
           </div>
 
           <div id="timelineSection" class="timeline-box">
@@ -718,42 +763,6 @@
                 <span class="muted">範囲内ループ再生</span>
               </label>
             </div>
-          </div>
-        </section>
-
-        <!-- Progress -->
-        <section id="progressSection" class="card card-pad hidden">
-          <div class="row-between">
-            <span id="progressLabel" style="font-weight: 600;">処理中...</span>
-            <div class="inline-group">
-              <span id="progressPct" class="muted mono">0%</span>
-              <button id="btnCancelTask" type="button" class="btn btn-sm">中止</button>
-            </div>
-          </div>
-          <div class="progress-rail">
-            <div id="progressBar" class="progress-fill"></div>
-          </div>
-        </section>
-
-        <!-- Result Preview -->
-        <section id="resultSection" class="card hidden">
-          <div class="card-header">
-            <div class="inline-group">
-              <span class="status-dot"></span>
-              <h2 class="card-title">生成されたGIFプレビュー</h2>
-              <span id="resultStats" class="muted mono"></span>
-            </div>
-            <div class="inline-group">
-              <button id="btnRegenerate" type="button" class="btn btn-sm">再生成</button>
-              <button id="btnShareGif" type="button" class="btn btn-sm btn-primary hidden">写真に保存 / 共有</button>
-              <a id="btnDownloadGif" download="profile_card.gif" href="#" class="btn btn-sm btn-primary">GIFをダウンロード</a>
-            </div>
-          </div>
-          <div class="result-preview checkerboard">
-            <img id="resultGifImg" alt="生成されたGIF" />
-          </div>
-          <div id="iosSaveHint" class="hidden muted" style="padding: 8px 14px; border-top: 1px solid var(--border); text-align: center;">
-            iPhone / iPad では上の「写真に保存 / 共有」またはGIF画像を長押し →「"写真"に保存」で保存できます
           </div>
         </section>
       </div>
@@ -939,6 +948,7 @@
     isBusy: false,
     cancelRequested: false,
     demoOrnamental: true,
+    cropEditMode: false,
     eyeRoiMode: false,
     manualEyeRoi: null,
   };
@@ -957,15 +967,17 @@
     fileInput: $('fileInput'), hiddenVideo: $('hiddenVideo'),
     autoDetectToggle: $('autoDetectToggle'), autoBlinkToggle: $('autoBlinkToggle'),
     autoConvertToggle: $('autoConvertToggle'), btnThemeToggle: $('btnThemeToggle'),
-    btnDemo: $('btnDemo'), btnOpenFile: $('btnOpenFile'),
+    btnGenerateHeader: $('btnGenerateHeader'), btnOpenFile: $('btnOpenFile'),
     alertBanner: $('alertBanner'), alertText: $('alertText'), btnCloseAlert: $('btnCloseAlert'),
     emptyDropZone: $('emptyDropZone'), emptyPresetSummary: $('emptyPresetSummary'),
     btnDropzoneSelect: $('btnDropzoneSelect'), btnDropzoneDemo: $('btnDropzoneDemo'),
     editorSection: $('editorSection'), videoFileName: $('videoFileName'), videoMetaBadge: $('videoMetaBadge'),
-    btnToggleDemoFrame: $('btnToggleDemoFrame'), btnAutoDetect: $('btnAutoDetect'),
-    btnBlinkDetectTop: $('btnBlinkDetectTop'), eyeRoiModeBanner: $('eyeRoiModeBanner'),
-    btnCancelEyeRoiMode: $('btnCancelEyeRoiMode'), stageContainer: $('stageContainer'),
-    stageCanvas: $('stageCanvas'), stageHudText: $('stageHudText'),
+    btnToggleDemoFrame: $('btnToggleDemoFrame'), btnToggleCropEdit: $('btnToggleCropEdit'),
+    btnAutoDetect: $('btnAutoDetect'), btnBlinkDetectTop: $('btnBlinkDetectTop'),
+    cropEditModeBanner: $('cropEditModeBanner'), btnDoneCropEdit: $('btnDoneCropEdit'),
+    eyeRoiModeBanner: $('eyeRoiModeBanner'), btnCancelEyeRoiMode: $('btnCancelEyeRoiMode'),
+    stageContainer: $('stageContainer'), stageCanvas: $('stageCanvas'),
+    stageHudText: $('stageHudText'), stageHintBadge: $('stageHintBadge'),
     btnCenterCrop: $('btnCenterCrop'), btnFullCrop: $('btnFullCrop'),
     timelineSection: $('timelineSection'), btnPlayPause: $('btnPlayPause'),
     iconPlay: $('iconPlay'), iconPause: $('iconPause'),
@@ -1863,8 +1875,17 @@
     el.btnAutoDetectSide.disabled = !activeSource || state.isBusy;
     el.btnGenerate.disabled = !activeSource || state.isBusy;
     el.btnGenerate.textContent = state.isBusy ? '処理中...' : (activeSource ? (isImg ? `切り抜きGIFを作成（${outW}×${outH}）` : `GIFを作成する（${outW}×${outH} · 約${estFrames}f）`) : '動画を読み込むとGIFを作成できます');
+    el.btnGenerateHeader.disabled = !activeSource || state.isBusy;
+    el.btnGenerateHeader.textContent = state.isBusy ? '処理中...' : 'GIFを作成';
 
+    el.cropEditModeBanner.classList.toggle('hidden', !state.cropEditMode || state.eyeRoiMode);
     el.eyeRoiModeBanner.classList.toggle('hidden', !state.eyeRoiMode);
+    el.stageCanvas.classList.toggle('editing', state.cropEditMode || state.eyeRoiMode);
+    el.btnToggleCropEdit.classList.toggle('btn-primary', state.cropEditMode);
+    el.btnToggleCropEdit.textContent = state.cropEditMode ? '調整を完了' : '枠を手動調整';
+    el.stageHintBadge.textContent = state.eyeRoiMode
+      ? '目の周りをドラッグして囲ってください'
+      : (state.cropEditMode ? 'ドラッグで移動・端でリサイズ / 矢印キー微調整' : 'スクロール保護中（「枠を手動調整」で変更可）');
     el.timelineSection.classList.toggle('hidden', !!isImg);
     el.btnToggleDemoFrame.classList.toggle('hidden', !(activeSource && activeSource.type === 'demo'));
     el.btnToggleDemoFrame.textContent = `枠切替: ${state.demoOrnamental ? '装飾あり' : 'シンプル枠'}`;
@@ -1943,7 +1964,7 @@
     ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.strokeRect(rx, ry, rw, rh);
     ctx.strokeStyle = accent; ctx.lineWidth = 1.5; ctx.strokeRect(rx + 1, ry + 1, Math.max(0, rw - 2), Math.max(0, rh - 2));
 
-    if (!state.eyeRoiMode) {
+    if (state.cropEditMode && !state.eyeRoiMode) {
       for (const h of getHandlePoints(rx, ry, rw, rh)) {
         ctx.fillStyle = '#ffffff'; ctx.strokeStyle = accent; ctx.lineWidth = 2;
         ctx.fillRect(h.x - 4.5, h.y - 4.5, 9, 9); ctx.strokeRect(h.x - 4.5, h.y - 4.5, 9, 9);
@@ -1970,6 +1991,7 @@
 
   el.stageCanvas.addEventListener('pointerdown', (e) => {
     if (!activeSource) return;
+    if (!state.cropEditMode && !state.eyeRoiMode) return;
     const rect = el.stageCanvas.getBoundingClientRect(), mx = e.clientX - rect.left, my = e.clientY - rect.top;
     el.stageCanvas.setPointerCapture(e.pointerId); el.stageContainer.focus();
     if (state.eyeRoiMode) {
@@ -1987,6 +2009,7 @@
 
   el.stageCanvas.addEventListener('pointermove', (e) => {
     if (!activeSource) return;
+    if (!state.cropEditMode && !state.eyeRoiMode) { el.stageCanvas.style.cursor = 'default'; return; }
     const rect = el.stageCanvas.getBoundingClientRect(), mx = e.clientX - rect.left, my = e.clientY - rect.top;
     if (state.eyeRoiMode) {
       el.stageCanvas.style.cursor = 'crosshair';
@@ -2045,7 +2068,7 @@
   });
 
   el.stageContainer.addEventListener('keydown', (e) => {
-    if (!activeSource) return;
+    if (!activeSource || !state.cropEditMode) return;
     const step = e.shiftKey ? 10 : 1; let moved = false;
     if (e.key === 'ArrowLeft') { state.cropX -= step; moved = true; }
     if (e.key === 'ArrowRight') { state.cropX += step; moved = true; }
@@ -2102,7 +2125,7 @@
   async function onSourceReady(src, triggeredByDrop = false) {
     hideAlert(); setPlaying(false);
     activeSource = src; lastDetection = null; lastBlinkResult = null;
-    state.manualEyeRoi = null; state.eyeRoiMode = false;
+    state.manualEyeRoi = null; state.eyeRoiMode = false; state.cropEditMode = false;
     updateDetectionUI(null); renderBlinkUI();
     state.startTime = 0; state.duration = src.type === 'image' ? 1.0 : Math.min(3.5, Math.max(0.2, Number(src.duration.toFixed(2))));
     state.currentTime = 0;
@@ -2518,19 +2541,13 @@
       el.btnDownloadGif.href = lastGifUrl;
       el.btnDownloadGif.download = lastGifFileName;
 
-      // Show native Share / Save-to-Photos button on iOS or browsers supporting Web Share with files
-      let canShareFile = false;
-      try {
-        if (navigator.canShare && typeof File !== 'undefined') {
-          canShareFile = navigator.canShare({ files: [new File([blob], lastGifFileName, { type: 'image/gif' })] });
-        }
-      } catch {}
-      el.btnShareGif.classList.toggle('hidden', !canShareFile);
+      // Keep "写真に保存 / 共有" always visible for mobile & Web Share support
+      el.btnShareGif.classList.remove('hidden');
       el.iosSaveHint.classList.toggle('hidden', !isIOS);
 
       el.resultStats.textContent = `${outW}×${outH} · ${frameCount}フレーム · ${fps}fps · ${formatBytes(blob.size)} (${((performance.now() - t0) / 1000).toFixed(2)}秒)`;
       el.resultSection.classList.remove('hidden');
-      el.resultSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      el.resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
       seekPreviewTo(state.currentTime);
     } catch (err) {
       if (err && err.message !== 'CANCELLED') showAlert(`GIF生成中にエラーが発生しました: ${err.message}`);
@@ -2544,11 +2561,20 @@
 
   el.btnShareGif.addEventListener('click', async () => {
     if (!lastGifBlob) return;
-    try {
-      const file = new File([lastGifBlob], lastGifFileName, { type: 'image/gif' });
-      await navigator.share({ files: [file], title: lastGifFileName });
-    } catch (err) {
-      if (err && err.name !== 'AbortError') showAlert('共有シートを開けませんでした。下のGIF画像を長押しして保存してください。');
+    if (typeof navigator.share === 'function' && typeof File !== 'undefined') {
+      try {
+        const file = new File([lastGifBlob], lastGifFileName, { type: 'image/gif' });
+        await navigator.share({ files: [file], title: lastGifFileName });
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+      }
+    }
+    if (isIOS) {
+      showAlert('共有シートを開けませんでした。下のGIF画像を長押し →「"写真"に保存」または「GIFをダウンロード」をお試しください。');
+    } else {
+      el.btnDownloadGif.click();
+      showAlert('このブラウザでは共有シート非対応のためGIFをダウンロードしました。スマホでは「写真に保存 / 共有」から保存できます。');
     }
   });
 
@@ -2557,7 +2583,7 @@
   el.btnOpenFile.addEventListener('click', triggerOpen);
   el.btnDropzoneSelect.addEventListener('click', (e) => { e.stopPropagation(); triggerOpen(); });
   el.emptyDropZone.addEventListener('click', triggerOpen);
-  el.btnDemo.addEventListener('click', () => onSourceReady({ ...DEMO_SOURCE }, false));
+  el.btnGenerateHeader.addEventListener('click', generateGif);
   el.btnDropzoneDemo.addEventListener('click', (e) => { e.stopPropagation(); onSourceReady({ ...DEMO_SOURCE }, false); });
   el.fileInput.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) loadMediaFile(f, false); e.target.value = ''; });
 
@@ -2574,11 +2600,28 @@
   el.autoDetectToggle.addEventListener('change', () => { state.autoDetect = el.autoDetectToggle.checked; syncUI(); });
   el.autoBlinkToggle.addEventListener('change', () => { state.autoBlink = el.autoBlinkToggle.checked; syncUI(); });
   el.autoConvertToggle.addEventListener('change', () => { state.autoConvert = el.autoConvertToggle.checked; syncUI(); });
-  el.btnAutoDetect.addEventListener('click', () => runAutoDetect(false));
-  el.btnAutoDetectSide.addEventListener('click', () => runAutoDetect(false));
+  el.btnToggleCropEdit.addEventListener('click', () => {
+    setPlaying(false);
+    state.cropEditMode = !state.cropEditMode;
+    if (state.cropEditMode) state.eyeRoiMode = false;
+    dragOp = null;
+    syncUI();
+  });
+  el.btnDoneCropEdit.addEventListener('click', () => {
+    state.cropEditMode = false;
+    dragOp = null;
+    syncUI();
+  });
+  el.btnAutoDetect.addEventListener('click', () => { state.cropEditMode = false; runAutoDetect(false); });
+  el.btnAutoDetectSide.addEventListener('click', () => { state.cropEditMode = false; runAutoDetect(false); });
   el.btnBlinkDetectTop.addEventListener('click', () => runBlinkLoopDetect());
   el.btnBlinkDetectSide.addEventListener('click', () => runBlinkLoopDetect());
-  el.btnPickEyeRoi.addEventListener('click', () => { setPlaying(false); state.eyeRoiMode = !state.eyeRoiMode; syncUI(); });
+  el.btnPickEyeRoi.addEventListener('click', () => {
+    setPlaying(false);
+    state.eyeRoiMode = !state.eyeRoiMode;
+    if (state.eyeRoiMode) state.cropEditMode = false;
+    syncUI();
+  });
   el.btnCancelEyeRoiMode.addEventListener('click', () => { state.eyeRoiMode = false; eyeRoiDrag = null; syncUI(); });
   el.btnResetEyeRoi.addEventListener('click', () => { state.manualEyeRoi = null; syncUI(); runBlinkLoopDetect(); });
   el.chkIncludeOrnaments.addEventListener('change', () => { state.includeOrnaments = el.chkIncludeOrnaments.checked; if (lastDetection) applyDetectionToCrop(lastDetection); else syncUI(); });
