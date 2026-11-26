@@ -65,6 +65,7 @@
       font-size: 14px;
       line-height: 1.5;
       -webkit-font-smoothing: antialiased;
+      overflow-anchor: none;
     }
 
     .hidden { display: none !important; }
@@ -2794,13 +2795,6 @@
     el.resultStats.textContent = statsText;
     el.progressSection.classList.add('hidden');
     el.resultSection.classList.remove('hidden');
-    requestAnimationFrame(() => {
-      const rect = el.resultSection.getBoundingClientRect();
-      if (rect.top < 8 || rect.bottom > window.innerHeight - 8) {
-        const y = Math.max(0, (window.scrollY || window.pageYOffset || 0) + rect.top - 12);
-        window.scrollTo({ top: y, behavior: 'smooth' });
-      }
-    });
   }
 
   // ---- Pure-JS Fast-Start ISO BMFF (MP4) Muxer for H.264 / AVC1 ----
@@ -3031,7 +3025,6 @@
     hideAlert(); setPlaying(false);
     state.isBusy = true; state.cancelRequested = false; syncUI();
     el.progressSection.classList.remove('hidden');
-    el.progressSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     setProgress('動画(MP4)生成を準備中...', 2);
 
     const t0 = performance.now();
