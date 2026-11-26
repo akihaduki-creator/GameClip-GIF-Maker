@@ -509,6 +509,34 @@
       box-shadow: var(--shadow);
       background: #000;
     }
+    .result-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px 14px;
+      background: var(--surface-alt);
+      border-top: 1px solid var(--border);
+    }
+    .btn-action-md {
+      min-height: 40px;
+      padding: 9px 18px;
+      border-radius: 9px;
+      font-size: 13.5px;
+      font-weight: 700;
+    }
+    @media (max-width: 640px) {
+      .result-actions {
+        gap: 8px;
+        padding: 10px 12px;
+      }
+      .result-actions .btn-action-md {
+        flex: 1 1 auto;
+        min-height: 42px;
+        padding: 10px 14px;
+      }
+    }
 
     /* Blink Sparkline & Code */
     .sub-box {
@@ -700,15 +728,15 @@
           <h2 id="resultTitle" class="card-title">生成されたGIFプレビュー</h2>
           <span id="resultStats" class="muted mono"></span>
         </div>
-        <div class="inline-group">
-          <button id="btnRegenerate" type="button" class="btn btn-sm">再生成</button>
-          <button id="btnShareGif" type="button" class="btn btn-sm btn-primary">写真に保存 / 共有</button>
-          <a id="btnDownloadGif" download="profile_card.gif" href="#" class="btn btn-sm"><span id="btnDownloadLabel">GIFをダウンロード</span></a>
-        </div>
       </div>
       <div class="result-preview checkerboard">
         <img id="resultGifImg" alt="生成されたGIF" />
         <video id="resultVideoEl" class="hidden" controls autoplay loop muted playsinline webkit-playsinline></video>
+      </div>
+      <div class="result-actions">
+        <button id="btnRegenerate" type="button" class="btn">再生成</button>
+        <button id="btnShareGif" type="button" class="btn btn-primary btn-action-md">写真に保存 / 共有</button>
+        <a id="btnDownloadGif" download="profile_card.gif" href="#" class="btn btn-action-md"><span id="btnDownloadLabel">GIFをダウンロード</span></a>
       </div>
       <div id="iosSaveHint" class="hidden muted" style="padding: 8px 14px; border-top: 1px solid var(--border); text-align: center;">
         iPhone / iPad では上の「写真に保存 / 共有」またはGIF画像を長押し →「"写真"に保存」で保存できます
