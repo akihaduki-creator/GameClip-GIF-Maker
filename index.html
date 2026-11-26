@@ -18,6 +18,9 @@
       --primary: #3b82f6;
       --primary-hover: #2563eb;
       --primary-fg: #ffffff;
+      --video-btn: #059669;
+      --video-btn-hover: #047857;
+      --video-btn-fg: #ffffff;
       --secondary-bg: #232838;
       --secondary-fg: #e2e8f0;
       --code-fg: #cbd5e1;
@@ -38,6 +41,9 @@
       --primary: #2563eb;
       --primary-hover: #1d4ed8;
       --primary-fg: #ffffff;
+      --video-btn: #059669;
+      --video-btn-hover: #047857;
+      --video-btn-fg: #ffffff;
       --secondary-bg: #f1f5f9;
       --secondary-fg: #1e293b;
       --code-fg: #1e293b;
@@ -121,6 +127,24 @@
       align-items: center;
       gap: 8px;
     }
+    .header-primary-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+    }
+    @media (max-width: 640px) {
+      .header-primary-actions {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .header-primary-actions .btn-hero {
+        padding: 12px 8px;
+        font-size: 13.5px;
+      }
+    }
 
     .workspace {
       display: grid;
@@ -166,7 +190,7 @@
     .card-title {
       margin: 0;
       font-size: 12.5px;
-      font-weight: 600;
+      font-weight: 700;
       color: var(--text);
     }
     .muted { color: var(--text-muted); font-size: 12px; }
@@ -197,6 +221,21 @@
       font-weight: 600;
     }
     .btn-primary:hover:not(:disabled) { background: var(--primary-hover); border-color: var(--primary-hover); }
+    .btn-video {
+      background: var(--video-btn);
+      border-color: var(--video-btn);
+      color: var(--video-btn-fg);
+      font-weight: 600;
+    }
+    .btn-video:hover:not(:disabled) { background: var(--video-btn-hover); border-color: var(--video-btn-hover); }
+    .btn-hero {
+      min-height: 46px;
+      padding: 11px 22px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
     .btn-sm { padding: 4px 9px; border-radius: 6px; font-size: 12px; }
     .btn-lg { width: 100%; padding: 10px 14px; font-size: 13px; }
     .btn-icon { width: 32px; height: 32px; padding: 0; }
@@ -235,6 +274,7 @@
     .field-label > span { color: var(--text-muted); font-size: 12px; }
 
     .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
     .grid-5 { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
 
     .seg-group {
@@ -258,7 +298,7 @@
     .seg-btn:hover { color: var(--text); }
     .seg-btn.active { background: var(--primary); color: var(--primary-fg); font-weight: 600; }
 
-    .fps-btn {
+    .fps-btn, .mp4-fps-btn {
       padding: 5px 0;
       border-radius: 6px;
       border: 1px solid var(--border);
@@ -270,6 +310,8 @@
     }
     .fps-btn:hover { border-color: var(--primary); }
     .fps-btn.active { background: var(--primary); border-color: var(--primary); color: var(--primary-fg); font-weight: 600; }
+    .mp4-fps-btn:hover { border-color: var(--video-btn); }
+    .mp4-fps-btn.active { background: var(--video-btn); border-color: var(--video-btn); color: var(--video-btn-fg); font-weight: 600; }
 
     /* Dropzone */
     .dropzone {
@@ -458,12 +500,14 @@
       max-height: 440px;
       overflow: auto;
     }
-    .result-preview img {
+    .result-preview img,
+    .result-preview video {
       max-width: 100%;
       max-height: 400px;
       border-radius: 6px;
       border: 1px solid var(--border);
       box-shadow: var(--shadow);
+      background: #000;
     }
 
     /* Blink Sparkline & Code */
@@ -601,7 +645,7 @@
         <div class="brand-mark">GIF</div>
         <div>
           <h1>クルスタ名刺GIFメーカー</h1>
-          <p>プロフィールカード枠＋瞬きループ（目を閉じた瞬間）を自動判定してブラウザ内でGIF化</p>
+          <p>プロフィールカード枠＋瞬きループ（目を閉じた瞬間）を自動判定してブラウザ内でGIF・MP4化</p>
         </div>
       </div>
 
@@ -619,8 +663,12 @@
           <span>自動GIF生成</span>
         </label>
         <button id="btnThemeToggle" type="button" class="btn" title="ライト / ダークテーマ切替">テーマ切替</button>
-        <button id="btnOpenFile" type="button" class="btn">動画を開く</button>
-        <button id="btnGenerateHeader" type="button" disabled class="btn btn-primary">GIFを作成</button>
+      </div>
+
+      <div class="header-primary-actions">
+        <button id="btnOpenFile" type="button" class="btn btn-hero">動画を選ぶ</button>
+        <button id="btnGenerateHeader" type="button" disabled class="btn btn-primary btn-hero">GIFを作成</button>
+        <button id="btnGenerateMp4Header" type="button" disabled class="btn btn-video btn-hero">動画を作成</button>
       </div>
     </header>
 
@@ -649,17 +697,18 @@
       <div class="card-header">
         <div class="inline-group">
           <span class="status-dot"></span>
-          <h2 class="card-title">生成されたGIFプレビュー</h2>
+          <h2 id="resultTitle" class="card-title">生成されたGIFプレビュー</h2>
           <span id="resultStats" class="muted mono"></span>
         </div>
         <div class="inline-group">
           <button id="btnRegenerate" type="button" class="btn btn-sm">再生成</button>
           <button id="btnShareGif" type="button" class="btn btn-sm btn-primary">写真に保存 / 共有</button>
-          <a id="btnDownloadGif" download="profile_card.gif" href="#" class="btn btn-sm">GIFをダウンロード</a>
+          <a id="btnDownloadGif" download="profile_card.gif" href="#" class="btn btn-sm"><span id="btnDownloadLabel">GIFをダウンロード</span></a>
         </div>
       </div>
       <div class="result-preview checkerboard">
         <img id="resultGifImg" alt="生成されたGIF" />
+        <video id="resultVideoEl" class="hidden" controls autoplay loop muted playsinline webkit-playsinline></video>
       </div>
       <div id="iosSaveHint" class="hidden muted" style="padding: 8px 14px; border-top: 1px solid var(--border); text-align: center;">
         iPhone / iPad では上の「写真に保存 / 共有」またはGIF画像を長押し →「"写真"に保存」で保存できます
@@ -892,7 +941,66 @@
           <button id="btnGenerate" type="button" disabled class="btn btn-primary btn-lg">動画を読み込むとGIFを作成できます</button>
         </section>
 
-        <!-- 5. FFmpeg Export -->
+        <!-- 5. MP4 Video Settings (Independent) -->
+        <section class="card card-pad">
+          <div class="card-title-row">
+            <h2 class="card-title">動画(MP4)出力設定</h2>
+            <span id="mp4BitrateReadout" class="muted mono">約 4.5 Mbps</span>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div class="row-between">
+              <span class="muted">フレームレート (FPS)</span>
+              <span id="mp4FrameEstimateText" class="muted mono">約 96 フレーム</span>
+            </div>
+            <div id="mp4FpsGroup" class="grid-4">
+              <button data-mp4-fps="15" type="button" class="mp4-fps-btn mono">15</button>
+              <button data-mp4-fps="24" type="button" class="mp4-fps-btn mono">24</button>
+              <button data-mp4-fps="30" type="button" class="mp4-fps-btn mono active">30</button>
+              <button data-mp4-fps="60" type="button" class="mp4-fps-btn mono">60</button>
+            </div>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 5px;">
+            <div class="row-between">
+              <span class="muted">出力サイズ (リサイズ)</span>
+              <span id="mp4OutResReadout" class="muted mono">718 × 406 px</span>
+            </div>
+            <div class="inline-group" style="flex-wrap: nowrap;">
+              <select id="selectMp4ScaleMode" class="field-select" style="flex: 1;">
+                <option value="orig">原寸（切り抜きサイズそのまま）</option>
+                <option value="1280">幅 1280px (HD)</option>
+                <option value="960">幅 960px</option>
+                <option value="720">幅 720px</option>
+                <option value="custom">カスタム幅を指定</option>
+              </select>
+              <input id="inputMp4CustomWidth" type="number" min="32" max="1920" step="2" value="1280" class="field-input mono hidden" style="width: 78px;" />
+            </div>
+          </div>
+
+          <label class="field-label">
+            <span>動画画質（ビットレート・プロファイル）</span>
+            <select id="selectMp4Quality" class="field-select">
+              <option value="ultra">最高画質（超高ビットレート・High Profile）</option>
+              <option value="high" selected>高画質（おすすめ・くっきり綺麗）</option>
+              <option value="standard">標準（バランス重視）</option>
+              <option value="light">軽量（SNS共有・省容量）</option>
+            </select>
+          </label>
+
+          <label class="field-label">
+            <span>ループ繰り返し回数</span>
+            <select id="selectMp4Loops" class="field-select">
+              <option value="1" selected>1回（切り抜き区間そのまま）</option>
+              <option value="2">2回ループ</option>
+              <option value="3">3回ループ</option>
+            </select>
+          </label>
+
+          <button id="btnGenerateMp4" type="button" disabled class="btn btn-video btn-lg">動画を読み込むと動画(MP4)を作成できます</button>
+        </section>
+
+        <!-- 6. FFmpeg Export -->
         <section class="card card-pad">
           <div class="card-title-row">
             <h2 class="card-title">FFmpeg / Windows用 .bat 生成</h2>
@@ -935,6 +1043,11 @@
     customWidth: savedState.customWidth || 640,
     quality: savedState.quality || 'high',
     loop: savedState.loop !== undefined ? savedState.loop : true,
+    mp4Fps: savedState.mp4Fps || 30,
+    mp4ScaleMode: savedState.mp4ScaleMode || 'orig',
+    mp4CustomWidth: savedState.mp4CustomWidth || 1280,
+    mp4Quality: savedState.mp4Quality || 'high',
+    mp4Loops: savedState.mp4Loops || 1,
     autoDetect: savedState.autoDetect !== undefined ? savedState.autoDetect : true,
     autoBlink: savedState.autoBlink !== undefined ? savedState.autoBlink : true,
     includeOrnaments: savedState.includeOrnaments !== undefined ? savedState.includeOrnaments : true,
@@ -960,6 +1073,8 @@
   let lastGifUrl = null;
   let lastGifBlob = null;
   let lastGifFileName = 'profile_card.gif';
+  let lastOutputKind = 'gif';
+  let lastOutputMime = 'image/gif';
 
   const $ = (id) => document.getElementById(id);
   const el = {
@@ -967,7 +1082,7 @@
     fileInput: $('fileInput'), hiddenVideo: $('hiddenVideo'),
     autoDetectToggle: $('autoDetectToggle'), autoBlinkToggle: $('autoBlinkToggle'),
     autoConvertToggle: $('autoConvertToggle'), btnThemeToggle: $('btnThemeToggle'),
-    btnGenerateHeader: $('btnGenerateHeader'), btnOpenFile: $('btnOpenFile'),
+    btnGenerateHeader: $('btnGenerateHeader'), btnGenerateMp4Header: $('btnGenerateMp4Header'), btnOpenFile: $('btnOpenFile'),
     alertBanner: $('alertBanner'), alertText: $('alertText'), btnCloseAlert: $('btnCloseAlert'),
     emptyDropZone: $('emptyDropZone'), emptyPresetSummary: $('emptyPresetSummary'),
     btnDropzoneSelect: $('btnDropzoneSelect'), btnDropzoneDemo: $('btnDropzoneDemo'),
@@ -988,8 +1103,10 @@
     btnSetStart: $('btnSetStart'), btnSetEnd: $('btnSetEnd'), chkLoopRange: $('chkLoopRange'),
     progressSection: $('progressSection'), progressLabel: $('progressLabel'),
     progressPct: $('progressPct'), progressBar: $('progressBar'), btnCancelTask: $('btnCancelTask'),
-    resultSection: $('resultSection'), resultStats: $('resultStats'), resultGifImg: $('resultGifImg'),
-    btnRegenerate: $('btnRegenerate'), btnShareGif: $('btnShareGif'), btnDownloadGif: $('btnDownloadGif'), iosSaveHint: $('iosSaveHint'),
+    resultSection: $('resultSection'), resultTitle: $('resultTitle'), resultStats: $('resultStats'),
+    resultGifImg: $('resultGifImg'), resultVideoEl: $('resultVideoEl'),
+    btnRegenerate: $('btnRegenerate'), btnShareGif: $('btnShareGif'),
+    btnDownloadGif: $('btnDownloadGif'), btnDownloadLabel: $('btnDownloadLabel'), iosSaveHint: $('iosSaveHint'),
     blinkBadge: $('blinkBadge'), blinkCurveWrap: $('blinkCurveWrap'),
     blinkEyeModeLabel: $('blinkEyeModeLabel'), blinkCurveCanvas: $('blinkCurveCanvas'),
     blinkPairList: $('blinkPairList'), btnBlinkDetectSide: $('btnBlinkDetectSide'),
@@ -1002,6 +1119,10 @@
     selectScaleMode: $('selectScaleMode'), inputCustomWidth: $('inputCustomWidth'),
     selectQuality: $('selectQuality'), chkGifLoop: $('chkGifLoop'),
     frameWarnBox: $('frameWarnBox'), btnGenerate: $('btnGenerate'),
+    mp4BitrateReadout: $('mp4BitrateReadout'), mp4FrameEstimateText: $('mp4FrameEstimateText'),
+    mp4OutResReadout: $('mp4OutResReadout'), selectMp4ScaleMode: $('selectMp4ScaleMode'),
+    inputMp4CustomWidth: $('inputMp4CustomWidth'), selectMp4Quality: $('selectMp4Quality'),
+    selectMp4Loops: $('selectMp4Loops'), btnGenerateMp4: $('btnGenerateMp4'),
     ffmpegPreview: $('ffmpegPreview'), btnCopyFfmpeg: $('btnCopyFfmpeg'), btnDownloadBat: $('btnDownloadBat'),
   };
 
@@ -1022,6 +1143,8 @@
       cropX: state.cropX, cropY: state.cropY, cropW: state.cropW, cropH: state.cropH,
       aspect: state.aspect, fps: state.fps, scaleMode: state.scaleMode,
       customWidth: state.customWidth, quality: state.quality, loop: state.loop,
+      mp4Fps: state.mp4Fps, mp4ScaleMode: state.mp4ScaleMode,
+      mp4CustomWidth: state.mp4CustomWidth, mp4Quality: state.mp4Quality, mp4Loops: state.mp4Loops,
       autoDetect: state.autoDetect, autoBlink: state.autoBlink,
       includeOrnaments: state.includeOrnaments, detectMargin: state.detectMargin,
       autoConvert: state.autoConvert,
@@ -1815,6 +1938,49 @@
     const scale = targetW / Math.max(1, state.cropW);
     return { outW: Math.max(16, Math.round(targetW)), outH: Math.max(16, Math.round(state.cropH * scale)) };
   }
+  function getMp4OutputDimensions() {
+    let targetW = state.cropW;
+    if (state.mp4ScaleMode === '1280' || state.mp4ScaleMode === '960' || state.mp4ScaleMode === '720') {
+      targetW = Math.min(state.cropW, Number(state.mp4ScaleMode));
+    } else if (state.mp4ScaleMode === 'custom') {
+      targetW = Math.max(32, Math.min(1920, Math.round(state.mp4CustomWidth || state.cropW)));
+    }
+    const scale = targetW / Math.max(1, state.cropW);
+    return {
+      outW: Math.max(2, Math.round(targetW) & ~1),
+      outH: Math.max(2, Math.round(state.cropH * scale) & ~1),
+    };
+  }
+  function getMp4EncodingProfile(width, height, fps) {
+    const pxPerSec = width * height * fps;
+    const q = state.mp4Quality || 'high';
+    if (q === 'ultra') {
+      return {
+        label: '最高画質',
+        bitrate: Math.max(8000000, Math.min(24000000, Math.round(pxPerSec * 0.55))),
+        codecs: ['avc1.640032', 'avc1.64002A', 'avc1.640028', 'avc1.4D402A', 'avc1.4D4028', 'avc1.42E028', 'avc1.42E01F'],
+      };
+    }
+    if (q === 'high') {
+      return {
+        label: '高画質',
+        bitrate: Math.max(4500000, Math.min(14000000, Math.round(pxPerSec * 0.34))),
+        codecs: ['avc1.64002A', 'avc1.640028', 'avc1.4D4028', 'avc1.42E028', 'avc1.42E01F'],
+      };
+    }
+    if (q === 'light') {
+      return {
+        label: '軽量',
+        bitrate: Math.max(1200000, Math.min(4000000, Math.round(pxPerSec * 0.11))),
+        codecs: ['avc1.42E028', 'avc1.42E01F', 'avc1.420028', 'avc1.42001F', 'avc1.4D4028'],
+      };
+    }
+    return {
+      label: '標準',
+      bitrate: Math.max(2400000, Math.min(8000000, Math.round(pxPerSec * 0.20))),
+      codecs: ['avc1.42E028', 'avc1.42E01F', 'avc1.420028', 'avc1.42001F', 'avc1.4D4028', 'avc1.640028'],
+    };
+  }
   function gcd(a, b) { a = Math.abs(Math.round(a)); b = Math.abs(Math.round(b)); while (b) { const t = b; b = a % b; a = t; } return a || 1; }
   function formatAspect(w, h) { const g = gcd(w, h), rw = Math.round(w / g), rh = Math.round(h / g); return (rw <= 21 && rh <= 21) ? `${rw}:${rh}` : `${(w / h).toFixed(2)}:1`; }
   function formatBytes(b) { return b < 1024 ? `${b} B` : (b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(2)} MB`); }
@@ -1851,6 +2017,7 @@
 
     document.querySelectorAll('#aspectGroup .seg-btn').forEach((b) => b.classList.toggle('active', b.dataset.aspect === state.aspect));
     document.querySelectorAll('#fpsGroup .fps-btn').forEach((b) => b.classList.toggle('active', Number(b.dataset.fps) === state.fps));
+    document.querySelectorAll('#mp4FpsGroup .mp4-fps-btn').forEach((b) => b.classList.toggle('active', Number(b.dataset.mp4Fps) === state.mp4Fps));
 
     el.selectScaleMode.value = state.scaleMode;
     el.inputCustomWidth.value = state.customWidth;
@@ -1859,12 +2026,26 @@
     el.chkGifLoop.checked = state.loop;
     el.chkLoopRange.checked = state.loopRange;
 
+    el.selectMp4ScaleMode.value = state.mp4ScaleMode;
+    el.inputMp4CustomWidth.value = state.mp4CustomWidth;
+    el.inputMp4CustomWidth.classList.toggle('hidden', state.mp4ScaleMode !== 'custom');
+    el.selectMp4Quality.value = state.mp4Quality;
+    el.selectMp4Loops.value = String(state.mp4Loops);
+
     const { outW, outH } = getOutputDimensions();
     el.outResReadout.textContent = `${outW} × ${outH} px`;
     const isImg = activeSource && activeSource.type === 'image';
     const estFrames = isImg ? 1 : Math.max(1, Math.round(state.duration * state.fps));
     el.frameEstimateText.textContent = isImg ? '静止画 (1フレーム)' : `約 ${estFrames} フレーム`;
     el.frameWarnBox.classList.toggle('hidden', estFrames <= 240);
+
+    const { outW: mp4W, outH: mp4H } = getMp4OutputDimensions();
+    const mp4Prof = getMp4EncodingProfile(mp4W, mp4H, state.mp4Fps);
+    const mp4Dur = (isImg ? Math.max(1.0, state.duration) : state.duration) * state.mp4Loops;
+    const mp4EstFrames = Math.max(1, Math.round(mp4Dur * state.mp4Fps));
+    el.mp4OutResReadout.textContent = `${mp4W} × ${mp4H} px`;
+    el.mp4BitrateReadout.textContent = `約 ${(mp4Prof.bitrate / 1000000).toFixed(1)} Mbps`;
+    el.mp4FrameEstimateText.textContent = `約 ${mp4EstFrames} フレーム (${mp4Dur.toFixed(1)}s)`;
 
     el.inputStart.value = state.startTime.toFixed(2);
     el.inputDuration.value = state.duration.toFixed(2);
@@ -1877,6 +2058,10 @@
     el.btnGenerate.textContent = state.isBusy ? '処理中...' : (activeSource ? (isImg ? `切り抜きGIFを作成（${outW}×${outH}）` : `GIFを作成する（${outW}×${outH} · 約${estFrames}f）`) : '動画を読み込むとGIFを作成できます');
     el.btnGenerateHeader.disabled = !activeSource || state.isBusy;
     el.btnGenerateHeader.textContent = state.isBusy ? '処理中...' : 'GIFを作成';
+    el.btnGenerateMp4.disabled = !activeSource || state.isBusy;
+    el.btnGenerateMp4.textContent = state.isBusy ? '処理中...' : (activeSource ? `動画(MP4)を作成する（${mp4W}×${mp4H} · ${state.mp4Fps}fps · ${mp4Prof.label}）` : '動画を読み込むと動画(MP4)を作成できます');
+    el.btnGenerateMp4Header.disabled = !activeSource || state.isBusy;
+    el.btnGenerateMp4Header.textContent = state.isBusy ? '処理中...' : '動画を作成';
 
     el.cropEditModeBanner.classList.toggle('hidden', !state.cropEditMode || state.eyeRoiMode);
     el.eyeRoiModeBanner.classList.toggle('hidden', !state.eyeRoiMode);
@@ -2532,22 +2717,9 @@
 
       writer.writeByte(0x3b);
       const blob = new Blob([writer.toUint8Array()], { type: 'image/gif' });
-      if (lastGifUrl) URL.revokeObjectURL(lastGifUrl);
-      lastGifBlob = blob;
-      lastGifFileName = `${activeSource.name.replace(/\.[^.]+$/, '')}_${outW}x${outH}.gif`;
-      lastGifUrl = URL.createObjectURL(blob);
-
-      el.resultGifImg.src = lastGifUrl;
-      el.btnDownloadGif.href = lastGifUrl;
-      el.btnDownloadGif.download = lastGifFileName;
-
-      // Keep "写真に保存 / 共有" always visible for mobile & Web Share support
-      el.btnShareGif.classList.remove('hidden');
-      el.iosSaveHint.classList.toggle('hidden', !isIOS);
-
-      el.resultStats.textContent = `${outW}×${outH} · ${frameCount}フレーム · ${fps}fps · ${formatBytes(blob.size)} (${((performance.now() - t0) / 1000).toFixed(2)}秒)`;
-      el.resultSection.classList.remove('hidden');
-      el.resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const fileName = `${activeSource.name.replace(/\.[^.]+$/, '')}_${outW}x${outH}.gif`;
+      const statsText = `${outW}×${outH} · ${frameCount}フレーム · ${fps}fps · ${formatBytes(blob.size)} (${((performance.now() - t0) / 1000).toFixed(2)}秒)`;
+      showGeneratedOutput({ blob, kind: 'gif', mime: 'image/gif', fileName, statsText });
       seekPreviewTo(state.currentTime);
     } catch (err) {
       if (err && err.message !== 'CANCELLED') showAlert(`GIF生成中にエラーが発生しました: ${err.message}`);
@@ -2559,11 +2731,408 @@
     }
   }
 
+  function showGeneratedOutput({ blob, kind, mime, fileName, statsText }) {
+    if (lastGifUrl) URL.revokeObjectURL(lastGifUrl);
+    lastGifBlob = blob;
+    lastGifFileName = fileName;
+    lastOutputKind = kind;
+    lastOutputMime = mime;
+    lastGifUrl = URL.createObjectURL(blob);
+
+    el.btnDownloadGif.href = lastGifUrl;
+    el.btnDownloadGif.download = lastGifFileName;
+    if (kind === 'mp4') {
+      const isWebm = mime.includes('webm');
+      el.resultTitle.textContent = isWebm ? '生成された動画(WebM)プレビュー' : '生成された動画(MP4)プレビュー';
+      el.btnDownloadLabel.textContent = isWebm ? '動画(WebM)をダウンロード' : '動画(MP4)をダウンロード';
+      el.resultGifImg.classList.add('hidden');
+      el.resultVideoEl.src = lastGifUrl;
+      el.resultVideoEl.classList.remove('hidden');
+      el.resultVideoEl.play().catch(() => {});
+      el.iosSaveHint.textContent = 'iPhone / iPad では上の「写真に保存 / 共有」→「ビデオを保存」で写真アプリに保存できます';
+    } else {
+      el.resultTitle.textContent = '生成されたGIFプレビュー';
+      el.btnDownloadLabel.textContent = 'GIFをダウンロード';
+      el.resultVideoEl.pause();
+      el.resultVideoEl.removeAttribute('src');
+      el.resultVideoEl.classList.add('hidden');
+      el.resultGifImg.src = lastGifUrl;
+      el.resultGifImg.classList.remove('hidden');
+      el.iosSaveHint.textContent = 'iPhone / iPad では上の「写真に保存 / 共有」またはGIF画像を長押し →「"写真"に保存」で保存できます';
+    }
+
+    el.btnShareGif.classList.remove('hidden');
+    el.iosSaveHint.classList.toggle('hidden', !isIOS);
+    el.resultStats.textContent = statsText;
+    el.resultSection.classList.remove('hidden');
+    el.resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---- Pure-JS Fast-Start ISO BMFF (MP4) Muxer for H.264 / AVC1 ----
+  function mp4U32(v) { return [(v >>> 24) & 0xff, (v >>> 16) & 0xff, (v >>> 8) & 0xff, v & 0xff]; }
+  function mp4U16(v) { return [(v >>> 8) & 0xff, v & 0xff]; }
+  function mp4Str(s) { return Array.from(s, (c) => c.charCodeAt(0) & 0xff); }
+  function mp4Concat(parts) {
+    let total = 0; for (const p of parts) total += p.length;
+    const out = new Uint8Array(total); let off = 0;
+    for (const p of parts) { out.set(p, off); off += p.length; }
+    return out;
+  }
+  function mp4Box(type, ...payloads) {
+    const body = mp4Concat(payloads.map((p) => (p instanceof Uint8Array ? p : new Uint8Array(p))));
+    const size = 8 + body.length, out = new Uint8Array(size);
+    out[0] = (size >>> 24) & 0xff; out[1] = (size >>> 16) & 0xff; out[2] = (size >>> 8) & 0xff; out[3] = size & 0xff;
+    for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+    out.set(body, 8);
+    return out;
+  }
+  function mp4FullBox(type, ver, flags, ...payloads) {
+    return mp4Box(type, new Uint8Array([ver & 0xff, (flags >>> 16) & 0xff, (flags >>> 8) & 0xff, flags & 0xff]), ...payloads);
+  }
+  function isAnnexBBytes(b) {
+    return b && b.length >= 4 && ((b[0] === 0 && b[1] === 0 && b[2] === 1) || (b[0] === 0 && b[1] === 0 && b[2] === 0 && b[3] === 1));
+  }
+  function splitAnnexBNalus(bytes) {
+    const nalus = [], n = bytes.length;
+    const findStart = (pos) => {
+      for (let k = pos; k < n - 2; k++) {
+        if (bytes[k] === 0 && bytes[k + 1] === 0) {
+          if (bytes[k + 2] === 1) return [k, 3];
+          if (k + 3 < n && bytes[k + 2] === 0 && bytes[k + 3] === 1) return [k, 4];
+        }
+      }
+      return [-1, 0];
+    };
+    let [start, scLen] = findStart(0);
+    while (start >= 0) {
+      const bodyStart = start + scLen;
+      const [nextStart, nextLen] = findStart(bodyStart);
+      const bodyEnd = nextStart >= 0 ? nextStart : n;
+      if (bodyEnd > bodyStart) nalus.push(bytes.subarray(bodyStart, bodyEnd));
+      start = nextStart; scLen = nextLen;
+    }
+    return nalus;
+  }
+  function buildAvcCFromAnnexB(bytes) {
+    const nalus = splitAnnexBNalus(bytes), sps = [], pps = [];
+    for (const u of nalus) { const t = u[0] & 0x1f; if (t === 7) sps.push(u); else if (t === 8) pps.push(u); }
+    if (!sps.length || !pps.length) return null;
+    const s0 = sps[0], parts = [new Uint8Array([1, s0[1] || 0x42, s0[2] || 0xe0, s0[3] || 0x1f, 0xff, 0xe0 | (sps.length & 0x1f)])];
+    for (const s of sps) parts.push(new Uint8Array(mp4U16(s.length)), s);
+    parts.push(new Uint8Array([pps.length & 0xff]));
+    for (const p of pps) parts.push(new Uint8Array(mp4U16(p.length)), p);
+    return mp4Concat(parts);
+  }
+  function annexBChunkToAvcc(bytes) {
+    const parts = [];
+    for (const u of splitAnnexBNalus(bytes)) {
+      const t = u[0] & 0x1f;
+      if (t === 7 || t === 8) continue;
+      parts.push(new Uint8Array(mp4U32(u.length)), u);
+    }
+    return mp4Concat(parts);
+  }
+  function muxH264ToMp4({ width, height, timescale = 90000, samples, avcC }) {
+    if (!samples.length) throw new Error('映像フレームを生成できませんでした');
+    if (!avcC || avcC.length < 7) throw new Error('H.264デコーダ情報(avcC)を取得できませんでした');
+    const n = samples.length;
+    const durs = samples.map((s) => Math.max(1, Math.round(s.durTicks)));
+    let totalDur = 0;
+    const dts = new Array(n);
+    for (let i = 0; i < n; i++) { dts[i] = totalDur; totalDur += durs[i]; }
+    const pts0 = samples[0].ptsTicks || 0;
+    let hasCtts = false, minOff = 0;
+    const rawOff = new Array(n);
+    for (let i = 0; i < n; i++) {
+      const o = Math.round((samples[i].ptsTicks - pts0) - dts[i]);
+      rawOff[i] = o; if (o !== 0) hasCtts = true; if (o < minOff) minOff = o;
+    }
+    const rle = (arr) => { const out = []; for (let i = 0; i < arr.length; i++) { if (out.length && out[out.length - 1][1] === arr[i]) out[out.length - 1][0]++; else out.push([1, arr[i]]); } return out; };
+    const sttsEntries = rle(durs);
+    const sttsBox = mp4FullBox('stts', 0, 0, new Uint8Array(mp4U32(sttsEntries.length)), ...sttsEntries.map(([c, d]) => new Uint8Array([...mp4U32(c), ...mp4U32(d)])));
+    let cttsBox = null;
+    if (hasCtts) {
+      const ce = rle(rawOff.map((o) => o - minOff));
+      cttsBox = mp4FullBox('ctts', 0, 0, new Uint8Array(mp4U32(ce.length)), ...ce.map(([c, o]) => new Uint8Array([...mp4U32(c), ...mp4U32(o)])));
+    }
+    const keys = []; for (let i = 0; i < n; i++) if (samples[i].key) keys.push(i + 1);
+    if (!keys.length) keys.push(1);
+    const stssBox = mp4FullBox('stss', 0, 0, new Uint8Array(mp4U32(keys.length)), ...keys.map((k) => new Uint8Array(mp4U32(k))));
+    const stscBox = mp4FullBox('stsc', 0, 0, new Uint8Array([...mp4U32(1), ...mp4U32(1), ...mp4U32(1), ...mp4U32(1)]));
+    const relOff = new Array(n); let mdatSize = 0;
+    const stszParts = [new Uint8Array([...mp4U32(0), ...mp4U32(n)])];
+    for (let i = 0; i < n; i++) { relOff[i] = mdatSize; const len = samples[i].data.length; stszParts.push(new Uint8Array(mp4U32(len))); mdatSize += len; }
+    const stszBox = mp4FullBox('stsz', 0, 0, ...stszParts);
+
+    const avc1Hdr = new Uint8Array(78);
+    avc1Hdr[7] = 1;
+    avc1Hdr[24] = (width >>> 8) & 0xff; avc1Hdr[25] = width & 0xff;
+    avc1Hdr[26] = (height >>> 8) & 0xff; avc1Hdr[27] = height & 0xff;
+    avc1Hdr[29] = 0x48; avc1Hdr[33] = 0x48; avc1Hdr[41] = 1;
+    avc1Hdr[75] = 0x18; avc1Hdr[76] = 0xff; avc1Hdr[77] = 0xff;
+    const stsdBox = mp4FullBox('stsd', 0, 0, new Uint8Array(mp4U32(1)), mp4Box('avc1', avc1Hdr, mp4Box('avcC', avcC), mp4Box('pasp', new Uint8Array([...mp4U32(1), ...mp4U32(1)]))));
+
+    const matrix = [...mp4U32(0x00010000), ...mp4U32(0), ...mp4U32(0), ...mp4U32(0), ...mp4U32(0x00010000), ...mp4U32(0), ...mp4U32(0), ...mp4U32(0), ...mp4U32(0x40000000)];
+    const mvhdBox = mp4FullBox('mvhd', 0, 0, new Uint8Array([...mp4U32(0), ...mp4U32(0), ...mp4U32(timescale), ...mp4U32(totalDur), ...mp4U32(0x00010000), ...mp4U16(0x0100), 0, 0, ...mp4U32(0), ...mp4U32(0), ...matrix, ...mp4U32(0), ...mp4U32(0), ...mp4U32(0), ...mp4U32(0), ...mp4U32(0), ...mp4U32(0), ...mp4U32(2)]));
+    const tkhdBox = mp4FullBox('tkhd', 0, 3, new Uint8Array([...mp4U32(0), ...mp4U32(0), ...mp4U32(1), ...mp4U32(0), ...mp4U32(totalDur), ...mp4U32(0), ...mp4U32(0), ...mp4U16(0), ...mp4U16(0), ...mp4U16(0), ...mp4U16(0), ...matrix, ...mp4U32((width & 0xffff) << 16), ...mp4U32((height & 0xffff) << 16)]));
+    const mdhdBox = mp4FullBox('mdhd', 0, 0, new Uint8Array([...mp4U32(0), ...mp4U32(0), ...mp4U32(timescale), ...mp4U32(totalDur), ...mp4U16(0x55c4), ...mp4U16(0)]));
+    const hdlrBox = mp4FullBox('hdlr', 0, 0, new Uint8Array([...mp4U32(0), ...mp4Str('vide'), ...mp4U32(0), ...mp4U32(0), ...mp4U32(0), ...mp4Str('VideoHandler'), 0]));
+    const vmhdBox = mp4FullBox('vmhd', 0, 1, new Uint8Array(8));
+    const dinfBox = mp4Box('dinf', mp4FullBox('dref', 0, 0, new Uint8Array(mp4U32(1)), mp4FullBox('url ', 0, 1)));
+    const ftypBox = mp4Box('ftyp', new Uint8Array([...mp4Str('isom'), ...mp4U32(0x200), ...mp4Str('isom'), ...mp4Str('iso2'), ...mp4Str('avc1'), ...mp4Str('mp41')]));
+
+    const buildMoov = (mdatOff) => {
+      const stcoBox = mp4FullBox('stco', 0, 0, new Uint8Array(mp4U32(n)), ...relOff.map((o) => new Uint8Array(mp4U32(mdatOff + o))));
+      const stblChildren = [stsdBox, sttsBox];
+      if (cttsBox) stblChildren.push(cttsBox);
+      stblChildren.push(stssBox, stscBox, stszBox, stcoBox);
+      return mp4Box('moov', mvhdBox, mp4Box('trak', tkhdBox, mp4Box('mdia', mdhdBox, hdlrBox, mp4Box('minf', vmhdBox, dinfBox, mp4Box('stbl', ...stblChildren)))));
+    };
+    const dummy = buildMoov(0);
+    const moovBox = buildMoov(ftypBox.length + dummy.length + 8);
+    const mdatHdr = new Uint8Array([...mp4U32(8 + mdatSize), ...mp4Str('mdat')]);
+    return mp4Concat([ftypBox, moovBox, mdatHdr, ...samples.map((s) => s.data)]);
+  }
+
+  async function findSupportedH264Config(width, height, fps, profile) {
+    if (typeof VideoEncoder !== 'function' || typeof VideoFrame !== 'function') return null;
+    const bitrate = profile.bitrate;
+    const codecs = profile.codecs;
+    const extras = [
+      { avc: { format: 'avc' }, bitrateMode: 'variable', hardwareAcceleration: 'prefer-hardware' },
+      { avc: { format: 'avc' }, hardwareAcceleration: 'prefer-hardware' },
+      { avc: { format: 'avc' }, bitrateMode: 'variable' },
+      { avc: { format: 'avc' } },
+      {},
+    ];
+    for (const codec of codecs) {
+      for (const extra of extras) {
+        const cfg = { codec, width, height, bitrate, framerate: fps, ...extra };
+        try {
+          const res = await VideoEncoder.isConfigSupported(cfg);
+          if (res && res.supported) return res.config || cfg;
+        } catch {}
+      }
+    }
+    return null;
+  }
+
+  async function recordCanvasFallback({ outCanvas, outCtx, demoCanvas, demoCtx, iosStage, outW, outH, start, duration, loops, fps, bitrate, isImg }) {
+    if (typeof MediaRecorder !== 'function' || typeof outCanvas.captureStream !== 'function') {
+      throw new Error('このブラウザはMP4動画生成（WebCodecs / MediaRecorder）に対応していません。');
+    }
+    const candidates = ['video/mp4;codecs=avc1.640028', 'video/mp4;codecs=avc1.4D4028', 'video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+    let mimeType = '';
+    for (const m of candidates) {
+      try { if (MediaRecorder.isTypeSupported(m)) { mimeType = m; break; } } catch {}
+    }
+    const stream = outCanvas.captureStream(fps);
+    const recorder = new MediaRecorder(stream, mimeType ? { mimeType, videoBitsPerSecond: bitrate } : { videoBitsPerSecond: bitrate });
+    const chunks = [];
+    recorder.ondataavailable = (ev) => { if (ev.data && ev.data.size > 0) chunks.push(ev.data); };
+    const stopped = new Promise((resolve, reject) => {
+      recorder.onstop = () => resolve();
+      recorder.onerror = (ev) => reject(ev.error || new Error('MediaRecorder error'));
+    });
+
+    if (activeSource.type === 'video') {
+      await seekVideoExact(el.hiddenVideo, start);
+      drawVideoCroppedSafe(el.hiddenVideo, outCtx, state.cropX, state.cropY, state.cropW, state.cropH, outW, outH, iosStage);
+    } else if (isImg) {
+      outCtx.drawImage(activeSource.imgEl, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, outW, outH);
+    } else {
+      DEMO_SOURCE.drawAt(demoCtx, start);
+      outCtx.drawImage(demoCanvas, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, outW, outH);
+    }
+
+    const totalDur = duration * loops;
+    let loopIdx = 0;
+    recorder.start(100);
+    if (activeSource.type === 'video') { try { await el.hiddenVideo.play(); } catch {} }
+    const startWall = performance.now();
+    await new Promise((resolve, reject) => {
+      const tick = () => {
+        if (state.cancelRequested) {
+          try { if (activeSource.type === 'video') el.hiddenVideo.pause(); } catch {}
+          try { if (recorder.state !== 'inactive') recorder.stop(); } catch {}
+          reject(new Error('CANCELLED'));
+          return;
+        }
+        const elapsed = (performance.now() - startWall) / 1000;
+        if (isImg) {
+          outCtx.drawImage(activeSource.imgEl, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, outW, outH);
+        } else if (activeSource.type === 'demo') {
+          const tInLoop = elapsed % duration;
+          DEMO_SOURCE.drawAt(demoCtx, Math.min(activeSource.duration, start + tInLoop));
+          outCtx.drawImage(demoCanvas, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, outW, outH);
+        } else {
+          const curT = el.hiddenVideo.currentTime;
+          if ((el.hiddenVideo.ended || curT >= Math.min(activeSource.duration, start + duration)) && loopIdx + 1 < loops) {
+            loopIdx++;
+            el.hiddenVideo.currentTime = start;
+            el.hiddenVideo.play().catch(() => {});
+          }
+          drawVideoCroppedSafe(el.hiddenVideo, outCtx, state.cropX, state.cropY, state.cropW, state.cropH, outW, outH, iosStage);
+        }
+        setProgress(`動画録画エンコード中 (${Math.min(totalDur, elapsed).toFixed(1)}s / ${totalDur.toFixed(1)}s)`, 8 + Math.min(1, elapsed / totalDur) * 86);
+        if (elapsed >= totalDur) {
+          if (activeSource.type === 'video') el.hiddenVideo.pause();
+          if (recorder.state !== 'inactive') recorder.stop();
+          resolve();
+          return;
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    await stopped;
+    stream.getTracks().forEach((tr) => tr.stop());
+    const finalMime = (recorder.mimeType || mimeType || 'video/mp4').split(';')[0];
+    return { blob: new Blob(chunks, { type: finalMime }), mime: finalMime };
+  }
+
+  async function generateMp4() {
+    if (!activeSource || state.isBusy) return;
+    hideAlert(); setPlaying(false);
+    state.isBusy = true; state.cancelRequested = false; syncUI();
+    el.progressSection.classList.remove('hidden');
+    el.progressSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    setProgress('動画(MP4)生成を準備中...', 2);
+
+    const t0 = performance.now();
+    let outCanvas = null, demoCanvas = null, iosStage = null, encoder = null;
+    try {
+      const isImg = activeSource.type === 'image';
+      const { outW, outH } = getMp4OutputDimensions();
+      const fps = state.mp4Fps;
+      const loops = Math.max(1, Math.min(3, Number(state.mp4Loops) || 1));
+      const prof = getMp4EncodingProfile(outW, outH, fps);
+      const start = isImg ? 0 : state.startTime;
+      const duration = isImg ? Math.max(1.0, state.duration) : Math.max(0.2, state.duration);
+      const singleFrames = Math.max(1, Math.round(duration * fps));
+      const frameCount = singleFrames * loops;
+
+      if (activeSource.type === 'video' && isIOS) {
+        setProgress('iOSデコーダを準備中...', 4);
+        await primeVideoForIOS(el.hiddenVideo);
+      }
+
+      outCanvas = document.createElement('canvas');
+      outCanvas.width = outW; outCanvas.height = outH;
+      const outCtx = outCanvas.getContext('2d', { willReadFrequently: isIOS });
+      outCtx.imageSmoothingEnabled = true;
+      try { outCtx.imageSmoothingQuality = 'high'; } catch {}
+
+      let demoCtx = null;
+      if (activeSource.type === 'demo') {
+        demoCanvas = document.createElement('canvas'); demoCanvas.width = activeSource.width; demoCanvas.height = activeSource.height;
+        demoCtx = demoCanvas.getContext('2d');
+      } else if (activeSource.type === 'video' && isIOS) {
+        iosStage = document.createElement('canvas'); iosStage.width = activeSource.width; iosStage.height = activeSource.height;
+      }
+
+      const h264Cfg = await findSupportedH264Config(outW, outH, fps, prof);
+      let blob = null, finalMime = 'video/mp4';
+
+      if (h264Cfg) {
+        const samples = [];
+        let avcC = null;
+        let encodeErr = null;
+        const defaultDurTicks = Math.max(1, Math.round(90000 / fps));
+
+        encoder = new VideoEncoder({
+          output: (chunk, meta) => {
+            if (!avcC && meta && meta.decoderConfig && meta.decoderConfig.description) {
+              const d = meta.decoderConfig.description;
+              const raw = ArrayBuffer.isView(d) ? new Uint8Array(d.buffer, d.byteOffset, d.byteLength) : new Uint8Array(d);
+              avcC = isAnnexBBytes(raw) ? buildAvcCFromAnnexB(raw) : raw.slice();
+            }
+            let data = new Uint8Array(chunk.byteLength);
+            chunk.copyTo(data);
+            if (isAnnexBBytes(data)) {
+              if (!avcC) avcC = buildAvcCFromAnnexB(data);
+              data = annexBChunkToAvcc(data);
+            }
+            if (data.length > 0) {
+              samples.push({
+                data,
+                ptsTicks: Math.round((chunk.timestamp / 1e6) * 90000),
+                durTicks: chunk.duration ? Math.max(1, Math.round((chunk.duration / 1e6) * 90000)) : defaultDurTicks,
+                key: chunk.type === 'key',
+              });
+            }
+          },
+          error: (e) => { encodeErr = e; },
+        });
+        encoder.configure(h264Cfg);
+
+        const gop = Math.max(1, Math.round(fps));
+        for (let i = 0; i < frameCount; i++) {
+          if (state.cancelRequested) throw new Error('CANCELLED');
+          if (encodeErr) throw encodeErr;
+          const fi = i % singleFrames;
+          const t = Math.min(activeSource.duration - 0.002, start + fi / fps);
+          if (isImg) {
+            outCtx.drawImage(activeSource.imgEl, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, outW, outH);
+          } else if (activeSource.type === 'demo') {
+            DEMO_SOURCE.drawAt(demoCtx, t);
+            outCtx.drawImage(demoCanvas, state.cropX, state.cropY, state.cropW, state.cropH, 0, 0, outW, outH);
+          } else {
+            await seekVideoExact(el.hiddenVideo, t);
+            drawVideoCroppedSafe(el.hiddenVideo, outCtx, state.cropX, state.cropY, state.cropW, state.cropH, outW, outH, iosStage);
+            if (isIOS && i === 0 && isRgbaBlank(outCtx.getImageData(0, 0, Math.min(64, outW), Math.min(64, outH)).data)) {
+              await primeVideoForIOS(el.hiddenVideo);
+              await seekVideoExact(el.hiddenVideo, Math.min(activeSource.duration - 0.002, t + 0.02));
+              drawVideoCroppedSafe(el.hiddenVideo, outCtx, state.cropX, state.cropY, state.cropW, state.cropH, outW, outH, iosStage);
+            }
+          }
+          while (encoder.encodeQueueSize > 4) {
+            if (state.cancelRequested) throw new Error('CANCELLED');
+            if (encodeErr) throw encodeErr;
+            await new Promise((r) => setTimeout(r, 10));
+          }
+          const vf = new VideoFrame(outCanvas, {
+            timestamp: Math.round((i * 1000000) / fps),
+            duration: Math.round(1000000 / fps),
+          });
+          encoder.encode(vf, { keyFrame: i === 0 || (i % gop === 0) });
+          vf.close();
+          setProgress(`MP4エンコード中・${prof.label} (${i + 1} / ${frameCount})`, 6 + ((i + 1) / frameCount) * 86);
+          if (i % 2 === 1) await yieldFrame();
+        }
+        setProgress('MP4ファイルにまとめています...', 95);
+        await encoder.flush();
+        if (encodeErr) throw encodeErr;
+        const mp4Bytes = muxH264ToMp4({ width: outW, height: outH, timescale: 90000, samples, avcC });
+        blob = new Blob([mp4Bytes], { type: 'video/mp4' });
+        finalMime = 'video/mp4';
+      } else {
+        const res = await recordCanvasFallback({ outCanvas, outCtx, demoCanvas, demoCtx, iosStage, outW, outH, start, duration, loops, fps, bitrate: prof.bitrate, isImg });
+        blob = res.blob;
+        finalMime = res.mime;
+      }
+
+      const ext = finalMime.includes('webm') ? 'webm' : 'mp4';
+      const fileName = `${activeSource.name.replace(/\.[^.]+$/, '')}_${outW}x${outH}.${ext}`;
+      const statsText = `${outW}×${outH} · ${frameCount}フレーム · ${fps}fps · ${prof.label} · ${formatBytes(blob.size)} (${((performance.now() - t0) / 1000).toFixed(2)}秒)`;
+      showGeneratedOutput({ blob, kind: 'mp4', mime: finalMime, fileName, statsText });
+      seekPreviewTo(state.currentTime);
+    } catch (err) {
+      if (err && err.message !== 'CANCELLED') showAlert(`動画(MP4)生成中にエラーが発生しました: ${err.message}`);
+    } finally {
+      if (encoder) { try { if (encoder.state !== 'closed') encoder.close(); } catch {} }
+      if (outCanvas) { outCanvas.width = 0; outCanvas.height = 0; }
+      if (demoCanvas) { demoCanvas.width = 0; demoCanvas.height = 0; }
+      if (iosStage) { iosStage.width = 0; iosStage.height = 0; }
+      state.isBusy = false; el.progressSection.classList.add('hidden'); syncUI();
+    }
+  }
+
   el.btnShareGif.addEventListener('click', async () => {
     if (!lastGifBlob) return;
     if (typeof navigator.share === 'function' && typeof File !== 'undefined') {
       try {
-        const file = new File([lastGifBlob], lastGifFileName, { type: 'image/gif' });
+        const file = new File([lastGifBlob], lastGifFileName, { type: lastOutputMime || 'image/gif' });
         await navigator.share({ files: [file], title: lastGifFileName });
         return;
       } catch (err) {
@@ -2571,10 +3140,12 @@
       }
     }
     if (isIOS) {
-      showAlert('共有シートを開けませんでした。下のGIF画像を長押し →「"写真"に保存」または「GIFをダウンロード」をお試しください。');
+      showAlert(lastOutputKind === 'mp4'
+        ? '共有シートを開けませんでした。「動画(MP4)をダウンロード」から保存をお試しください。'
+        : '共有シートを開けませんでした。下のGIF画像を長押し →「"写真"に保存」または「GIFをダウンロード」をお試しください。');
     } else {
       el.btnDownloadGif.click();
-      showAlert('このブラウザでは共有シート非対応のためGIFをダウンロードしました。スマホでは「写真に保存 / 共有」から保存できます。');
+      showAlert('このブラウザでは共有シート非対応のためファイルをダウンロードしました。スマホでは「写真に保存 / 共有」から保存できます。');
     }
   });
 
@@ -2584,6 +3155,7 @@
   el.btnDropzoneSelect.addEventListener('click', (e) => { e.stopPropagation(); triggerOpen(); });
   el.emptyDropZone.addEventListener('click', triggerOpen);
   el.btnGenerateHeader.addEventListener('click', generateGif);
+  el.btnGenerateMp4Header.addEventListener('click', generateMp4);
   el.btnDropzoneDemo.addEventListener('click', (e) => { e.stopPropagation(); onSourceReady({ ...DEMO_SOURCE }, false); });
   el.fileInput.addEventListener('change', (e) => { const f = e.target.files && e.target.files[0]; if (f) loadMediaFile(f, false); e.target.value = ''; });
 
@@ -2688,8 +3260,15 @@
   el.selectQuality.addEventListener('change', () => { state.quality = el.selectQuality.value; syncUI(); });
   el.chkGifLoop.addEventListener('change', () => { state.loop = el.chkGifLoop.checked; syncUI(); });
 
+  document.querySelectorAll('#mp4FpsGroup .mp4-fps-btn').forEach((b) => b.addEventListener('click', () => { state.mp4Fps = Number(b.dataset.mp4Fps); syncUI(); }));
+  el.selectMp4ScaleMode.addEventListener('change', () => { state.mp4ScaleMode = el.selectMp4ScaleMode.value; syncUI(); });
+  el.inputMp4CustomWidth.addEventListener('change', () => { const v = parseInt(el.inputMp4CustomWidth.value, 10); if (Number.isFinite(v)) state.mp4CustomWidth = Math.max(32, Math.min(1920, v & ~1)); syncUI(); });
+  el.selectMp4Quality.addEventListener('change', () => { state.mp4Quality = el.selectMp4Quality.value; syncUI(); });
+  el.selectMp4Loops.addEventListener('change', () => { state.mp4Loops = Math.max(1, Math.min(3, parseInt(el.selectMp4Loops.value, 10) || 1)); syncUI(); });
+
   el.btnGenerate.addEventListener('click', generateGif);
-  el.btnRegenerate.addEventListener('click', generateGif);
+  el.btnGenerateMp4.addEventListener('click', generateMp4);
+  el.btnRegenerate.addEventListener('click', () => (lastOutputKind === 'mp4' ? generateMp4() : generateGif()));
   el.btnCancelTask.addEventListener('click', () => { state.cancelRequested = true; });
 
   el.btnCopyFfmpeg.addEventListener('click', async () => {
